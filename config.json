@@ -1,0 +1,21 @@
+{
+    "multiprocessing": true,
+    "input_pcap_path": "in_pcap",
+    "output_path": "out",
+    "output_type": "csv",
+    "plugins_path": "./build/plugins/libFPNT_PLUGINS.so",
+    "force_remove": true,
+    "dfref_path": "dfref",
+    "genKey_pkt": "genKey_pkt_default",
+    "genKey_flow": "genKey_flow_default",
+    "genKey_flowset": "genKey_flowset_default",
+    "early_stop_pkts_per_pcap": -1,
+    "configcsv_path": "config",
+    "tshark_path": "tshark",
+    "tshark_displayfilter": "ssl||tcp||udp",
+    "tshark_option": "-V",
+    "fpnt_tshark_error_log": "/tmp/fpnt_tshark_err.log",
+    "log_numbering_concurrency": true,
+    "_comment1": "output directory must be an empty directory. otherwise, it will be deleted.",
+    "_comment2": "early_stop_pkts_per_pcap will not work if it is -1"
+}

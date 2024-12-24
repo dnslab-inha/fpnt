@@ -1,208 +1,89 @@
-[![Actions Status](https://github.com/TheLartians/ModernCppStarter/workflows/MacOS/badge.svg)](https://github.com/TheLartians/ModernCppStarter/actions)
-[![Actions Status](https://github.com/TheLartians/ModernCppStarter/workflows/Windows/badge.svg)](https://github.com/TheLartians/ModernCppStarter/actions)
-[![Actions Status](https://github.com/TheLartians/ModernCppStarter/workflows/Ubuntu/badge.svg)](https://github.com/TheLartians/ModernCppStarter/actions)
-[![Actions Status](https://github.com/TheLartians/ModernCppStarter/workflows/Style/badge.svg)](https://github.com/TheLartians/ModernCppStarter/actions)
-[![Actions Status](https://github.com/TheLartians/ModernCppStarter/workflows/Install/badge.svg)](https://github.com/TheLartians/ModernCppStarter/actions)
-[![codecov](https://codecov.io/gh/TheLartians/ModernCppStarter/branch/master/graph/badge.svg)](https://codecov.io/gh/TheLartians/ModernCppStarter)
+# fpnt: a flexible preprocesing framework for network traffic analysis
 
-<p align="center">
-  <img src="https://repository-images.githubusercontent.com/254842585/4dfa7580-7ffb-11ea-99d0-46b8fe2f4170" height="175" width="auto" />
-</p>
+`fpnt` is a C++-based framework to preprocess packet capture files (in `pcap` or `pcapng` format) in order to generate the corresponding Comma-Separated Values (CSV) files with varying levels of traffic granularity: packet, flow, and flowset. For each packet in the packet capture files, extracting and preprocessing various features is possible with the help of `tshark`-based decoding and filtering. Furthermore, by changing (or choosing) the flow and flowset key generation functions written in C++, you can define the notion of flow and flowset for your specific purpose. In addition, loading preprocessing functions as plugins (*i.e.*, shared object in Unix-like systems) is also supported in `fpnt`. Currently, `fpnt` only supports Unix-like systems, and has been tested in Ubuntu Linux.
 
-# ModernCppStarter
+## How to build
 
-Setting up a new C++ project usually requires a significant amount of preparation and boilerplate code, even more so for modern C++ projects with tests, executables and continuous integration.
-This template is the result of learnings from many previous projects and should help reduce the work required to setup up a modern C++ project.
+To build `fpnt`, you need to install `cmake` and compiler (e.g., `gcc`). The following command installs them in Ubuntu:
 
-## Features
-
-- [Modern CMake practices](https://pabloariasal.github.io/2018/02/19/its-time-to-do-cmake-right/)
-- Suited for single header libraries and projects of any scale
-- Clean separation of library and executable code
-- Integrated test suite
-- Continuous integration via [GitHub Actions](https://help.github.com/en/actions/)
-- Code coverage via [codecov](https://codecov.io)
-- Code formatting enforced by [clang-format](https://clang.llvm.org/docs/ClangFormat.html) and [cmake-format](https://github.com/cheshirekow/cmake_format) via [Format.cmake](https://github.com/TheLartians/Format.cmake)
-- Reproducible dependency management via [CPM.cmake](https://github.com/TheLartians/CPM.cmake)
-- Installable target with automatic versioning information and header generation via [PackageProject.cmake](https://github.com/TheLartians/PackageProject.cmake)
-- Automatic [documentation](https://thelartians.github.io/ModernCppStarter) and deployment with [Doxygen](https://www.doxygen.nl) and [GitHub Pages](https://pages.github.com)
-- Support for [sanitizer tools, and more](#additional-tools)
-
-## Usage
-
-### Adjust the template to your needs
-
-- Use this repo [as a template](https://help.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-from-a-template).
-- Replace all occurrences of "Greeter" in the relevant CMakeLists.txt with the name of your project
-  - Capitalization matters here: `Greeter` means the name of the project, while `greeter` is used in file names.
-  - Remember to rename the `include/greeter` directory to use your project's lowercase name and update all relevant `#include`s accordingly.
-- Replace the source files with your own
-- For header-only libraries: see the comments in [CMakeLists.txt](CMakeLists.txt)
-- Add [your project's codecov token](https://docs.codecov.io/docs/quick-start) to your project's github secrets under `CODECOV_TOKEN`
-- Happy coding!
-
-Eventually, you can remove any unused files, such as the standalone directory or irrelevant github workflows for your project.
-Feel free to replace the License with one suited for your project.
-
-To cleanly separate the library and subproject code, the outer `CMakeList.txt` only defines the library itself while the tests and other subprojects are self-contained in their own directories. 
-During development it is usually convenient to [build all subprojects at once](#build-everything-at-once).
-
-### Build and run the standalone target
-
-Use the following command to build and run the executable target.
-
-```bash
-cmake -S standalone -B build/standalone
-cmake --build build/standalone
-./build/standalone/Greeter --help
+```
+sudo apt install cmake build-essential -y
 ```
 
-### Build and run test suite
+You can build the `fpnt` source code in either Debug mode or Release mode.
 
-Use the following commands from the project's root directory to run the test suite.
+### Debug mode
 
-```bash
-cmake -S test -B build/test
-cmake --build build/test
-CTEST_OUTPUT_ON_FAILURE=1 cmake --build build/test --target test
+Debug mode can provide a detailed output during execution.
 
-# or simply call the executable: 
-./build/test/GreeterTests
+```
+mkdir build
+cmake -DCMAKE_BUILD_TYPE=Debug -S./all
+cmake --build ./build --config Debug
 ```
 
-To collect code coverage information, run CMake with the `-DENABLE_TEST_COVERAGE=1` option.
+### Release mode
 
-### Run clang-format
+`fpnt` built in Release mode prints minimal output during execution.
 
-Use the following commands from the project's root directory to check and fix C++ and CMake source style.
-This requires _clang-format_, _cmake-format_ and _pyyaml_ to be installed on the current system.
-
-```bash
-cmake -S test -B build/test
-
-# view changes
-cmake --build build/test --target format
-
-# apply changes
-cmake --build build/test --target fix-format
+```
+cmake -DCMAKE_BUILD_TYPE=Release -S./all
+cmake --build ./build --config Release
 ```
 
-See [Format.cmake](https://github.com/TheLartians/Format.cmake) for details.
-These dependencies can be easily installed using pip.
+### Locations of important files
 
-```bash
-pip install clang-format==14.0.6 cmake_format==0.6.11 pyyaml
+If you follow the above instructions in either mode, the standlone `fpnt` program will be stored as `build/standalone/fpnt`. You need to aware a plugin file (*i.e.*, a shared object file in Unix-like systems) stored as `build/plugins/libFPNT_PLUGINS.so`, since this file is required for executing `fpnt`, while its location can be changed. For more information, check [Requirements](#requirements) section.
+
+## How to execute
+
+To execute `fpnt`, several requirements should be satisfied, while some of them can be configured through `config.json`.
+
+### Requirements
+
+`fpnt` requires to install `tshark` for execution. You can install `tshark` in Ubuntu using the following command. If the `tshark` path is different, you need to change `tshark_path` field in `config.json`.
+
+```
+sudo apt install tshark -y
 ```
 
-### Build the documentation
+`fpnt` requires to have a JSON file called `config.json` in the current working directory (CWD). A template `config.json` is provided in the root source directory of `fpnt`.
 
-The documentation is automatically built and [published](https://thelartians.github.io/ModernCppStarter) whenever a [GitHub Release](https://help.github.com/en/github/administering-a-repository/managing-releases-in-a-repository) is created.
-To manually build documentation, call the following command.
-
-```bash
-cmake -S documentation -B build/doc
-cmake --build build/doc --target GenerateDocs
-# view the docs
-open build/doc/doxygen/html/index.html
+`fpnt` requires to have a directory called `dfref` to validate `tshark`-decoded input feature configuration. This directory contains HTML files referred by `https://www.wireshark.org/docs/dfref/`. You can crawl the HTML files by executing the given python crawler `crawl_dref.py`. Note that this python file requires [Python 3](https://www.python.org/downloads/) and [BeautifulSoup 4](https://pypi.org/project/beautifulsoup4/). While the following command is not recommended, you can install Python 3 and BeautifulSoup 4 in Ubuntu using the following command:
+```
+sudo apt install python3 python3-bs4 -y
 ```
 
-To build the documentation locally, you will need Doxygen, jinja2 and Pygments installed on your system.
-
-### Build everything at once
-
-The project also includes an `all` directory that allows building all targets at the same time.
-This is useful during development, as it exposes all subprojects to your IDE and avoids redundant builds of the library.
-
-```bash
-cmake -S all -B build
-cmake --build build
-
-# run tests
-./build/test/GreeterTests
-# format code
-cmake --build build --target fix-format
-# run standalone
-./build/standalone/Greeter --help
-# build docs
-cmake --build build --target GenerateDocs
+You can now crawl the HTML files:
+```
+python3 ./crawl_dref.py
 ```
 
-### Additional tools
+Your packet capture files should be located in the `input_pcap_path` directory (e.g., `in_pcap`) and the resulting CSV files will be located in the `output_path` directory (e.g., `out`). If a packet capture file is located in a subdirectory of the `input_pcap_path` directory, the output CSV file will be located, following its relative path to the `output_path` directory. You can change the `input_pcap_path` and `output_path` locations from the corresponding fields in `config.json`. Note that when `fpnt` is executed, the `output_path` directory will be removed if it exists and the `force_remove` field in `config.json` is set to `true`. If the `force_remove` field is set to `false`, the `output_path` directory will not be removed but if it exists, `fpnt` will be terminated without processing.
 
-The test and standalone subprojects include the [tools.cmake](cmake/tools.cmake) file which is used to import additional tools on-demand through CMake configuration arguments.
-The following are currently supported.
+`fpnt` requires several CSV files for extracting `tshark`-decoded input features and storing preprocessed output features in different level of traffic granularity. These CSV files should be located in the directory specified in the `configcsv_path` field of `config.json`.
 
-#### Sanitizers
+* `config/input_tshark.csv`: specifies `tshark`-decoded input features for each packet. A simple validation (just checking the existence of the features from the crawled `tshark` display filter references)
+* `config/output_pkt.csv`: specifies output features for each packet. In each row of this CSV file, you need to specify preprocessing functions (`P_*` functions) with options in order. Semicolon (`;`) is used for splitting multiple functions (and options) in order.
+* `config/output_flow.csv`: specifies output features for each flow. In each row of this CSV file, you need to specify preprocessing functions (`P_*` functions) with options in order. Semicolon (`;`) is used for splitting multiple functions (and options) in order.
+* `config/output_flowset.csv`: specifies output features for each flowset. In each row of this CSV file, you need to specify preprocessing functions (`P_*` functions) with options in order. Semicolon (`;`) is used for splitting multiple functions (and options) in order.
 
-Sanitizers can be enabled by configuring CMake with `-DUSE_SANITIZER=<Address | Memory | MemoryWithOrigins | Undefined | Thread | Leak | 'Address;Undefined'>`.
+To execute `fpnt` executable file, the plugin file `libFPNT_PLUGINS.so` is required. As described in [Locations of important files](#locations-of-important-files) section, building `fpnt` with build directory `build` generates `build/plugins/libFPNT_PLUGINS.so`. This plugin file contains `genKey_*` functions for key generation and `P_*` functions for preprocessing of each output field. These functions are not available in the `fpnt` executable file and will be dynamically loaded when `fpnt` is executed. When the location is changed, you need to change the `plugins_path` field in `config.json`.
 
-#### Static Analyzers
+### Executing the `fpnt` executable file
 
-Static Analyzers can be enabled by setting `-DUSE_STATIC_ANALYZER=<clang-tidy | iwyu | cppcheck>`, or a combination of those in quotation marks, separated by semicolons.
-By default, analyzers will automatically find configuration files such as `.clang-format`.
-Additional arguments can be passed to the analyzers by setting the `CLANG_TIDY_ARGS`, `IWYU_ARGS` or `CPPCHECK_ARGS` variables.
+If you do not move the executable file, you can execute `fpnt` using the following command:
+```
+build/standalone/fpnt
+```
 
-#### Ccache
+## More on configurations
 
-Ccache can be enabled by configuring with `-DUSE_CCACHE=<ON | OFF>`.
-
-## FAQ
-
-> Can I use this for header-only libraries?
-
-Yes, however you will need to change the library type to an `INTERFACE` library as documented in the [CMakeLists.txt](CMakeLists.txt).
-See [here](https://github.com/TheLartians/StaticTypeInfo) for an example header-only library based on the template.
-
-> I don't need a standalone target / documentation. How can I get rid of it?
-
-Simply remove the standalone / documentation directory and according github workflow file.
-
-> Can I build the standalone and tests at the same time? / How can I tell my IDE about all subprojects?
-
-To keep the template modular, all subprojects derived from the library have been separated into their own CMake modules.
-This approach makes it trivial for third-party projects to re-use the projects library code.
-To allow IDEs to see the full scope of the project, the template includes the `all` directory that will create a single build for all subprojects.
-Use this as the main directory for best IDE support.
-
-> I see you are using `GLOB` to add source files in CMakeLists.txt. Isn't that evil?
-
-Glob is considered bad because any changes to the source file structure [might not be automatically caught](https://cmake.org/cmake/help/latest/command/file.html#filesystem) by CMake's builders and you will need to manually invoke CMake on changes.
-  I personally prefer the `GLOB` solution for its simplicity, but feel free to change it to explicitly listing sources.
-
-> I want create additional targets that depend on my library. Should I modify the main CMakeLists to include them?
-
-Avoid including derived projects from the libraries CMakeLists (even though it is a common sight in the C++ world), as this effectively inverts the dependency tree and makes the build system hard to reason about.
-Instead, create a new directory or project with a CMakeLists that adds the library as a dependency (e.g. like the [standalone](standalone/CMakeLists.txt) directory).
-Depending type it might make sense move these components into a separate repositories and reference a specific commit or version of the library.
-This has the advantage that individual libraries and components can be improved and updated independently.
-
-> You recommend to add external dependencies using CPM.cmake. Will this force users of my library to use CPM.cmake as well?
-
-[CPM.cmake](https://github.com/TheLartians/CPM.cmake) should be invisible to library users as it's a self-contained CMake Script.
-If problems do arise, users can always opt-out by defining the CMake or env variable [`CPM_USE_LOCAL_PACKAGES`](https://github.com/cpm-cmake/CPM.cmake#options), which will override all calls to `CPMAddPackage` with the according `find_package` call.
-This should also enable users to use the project with their favorite external C++ dependency manager, such as vcpkg or Conan.
-
-> Can I configure and build my project offline?
-
-No internet connection is required for building the project, however when using CPM missing dependencies are downloaded at configure time.
-To avoid redundant downloads, it's highly recommended to set a CPM.cmake cache directory, e.g.: `export CPM_SOURCE_CACHE=$HOME/.cache/CPM`.
-This will enable shallow clones and allow offline configurations dependencies are already available in the cache.
-
-> Can I use CPack to create a package installer for my project?
-
-As there are a lot of possible options and configurations, this is not (yet) in the scope of this template. See the [CPack documentation](https://cmake.org/cmake/help/latest/module/CPack.html) for more information on setting up CPack installers.
-
-> This is too much, I just want to play with C++ code and test some libraries.
-
-Perhaps the [MiniCppStarter](https://github.com/TheLartians/MiniCppStarter) is something for you!
-
-## Related projects and alternatives
-
-- [**ModernCppStarter & PVS-Studio Static Code Analyzer**](https://github.com/viva64/pvs-studio-cmake-examples/tree/master/modern-cpp-starter): Official instructions on how to use the ModernCppStarter with the PVS-Studio Static Code Analyzer.
-- [**cpp-best-practices/gui_starter_template**](https://github.com/cpp-best-practices/gui_starter_template/): A popular C++ starter project, created in 2017.
-- [**filipdutescu/modern-cpp-template**](https://github.com/filipdutescu/modern-cpp-template): A recent starter using a more traditional approach for CMake structure and dependency management.
-- [**vector-of-bool/pitchfork**](https://github.com/vector-of-bool/pitchfork/): Pitchfork is a Set of C++ Project Conventions.
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=TheLartians/ModernCppStarter,cpp-best-practices/gui_starter_template,filipdutescu/modern-cpp-template&type=Date)](https://star-history.com/#TheLartians/ModernCppStarter&cpp-best-practices/gui_starter_template&filipdutescu/modern-cpp-template&Date)
+* `fpnt` supports multiprocessing by dispatching each file to different process up to the number of CPUs automatically. However, you can turn off the feature by changing the `multiprocessing` field in `config.json` to `false`. It could be useful for debugging `fpnt` source code.
+* Currently, the `output_type` field in `config.json` must be set to `csv`, since other output types are not supported.
+* You can customize the `genKey_*` fields in `config.json`, if you define a new `genKey_*` functions in the plugin file. The default `genKey_*` functions are defined in `plugins/default_keygen.cpp` and their interfaces are declared in `plugins/default_keygen.h`.
+* The `early_stop_pkts_per_pcap` field in `config.json` can be used to limit the number of packets to be processed for each file. If the field is set to `-1`, then the early stopping will not work. If the field is set to `0`, no files will not be processed and `fpnt` will be terminated. If the field has positive values, the early stopping will work.
+* The `tshark_displayfiler` field in `config.json` can be used for controlling `tshark`'s display filter (`-Y` option). You can find some examples from `https://tshark.dev/analyze/packet_hunting/packet_hunting/`.
+* The `tshark_option` field in `config.json` can be used to configure `tshark` command, but typically it is not recommended to change the field value, since such change generates unexpected output results from the `tshark` command execution.
+* The `fpnt_tshark_error_log` field in `config.json` specifies the name of `tshark`'s error log. If `fpnt` does not work correctly, it is recommended to check the error log file.
+* When multiprocessing is turned on, storing all errors in a single error log file makes analysis more difficult. The `log_numbering_concurrency` field in `config.json` can be useful, as it generates multiple error log files tagged with their respective process IDs.
