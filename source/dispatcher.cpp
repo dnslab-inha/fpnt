@@ -196,6 +196,7 @@ namespace fpnt {
         nlohmann::json out_flow;
         out_flow["__flow_key"] = flow_key;
         out_flow["__flowset_key"] = flowset_key;
+        flow_idx_from_flow[flow_key] = out_flows.size();
         out_flows.push_back(out_flow);
       }
 

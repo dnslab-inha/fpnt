@@ -60,6 +60,7 @@ namespace fpnt {
     std::set<std::string> keys_pkt;
     std::set<std::string> keys_flow;
     std::set<std::string> keys_flowset;
+    std::map<std::string, size_t> flow_idx_from_flow;
     std::map<std::string, std::vector<size_t>> pkt_idxs_from_flow;
     std::map<std::string, std::vector<size_t>> pkt_idxs_from_flowset;
     std::map<std::string, std::vector<std::string>> flow_keys_from_flowset;

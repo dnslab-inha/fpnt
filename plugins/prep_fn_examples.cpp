@@ -3,7 +3,7 @@
 #include <tuple>
 #include <nlohmann/json.hpp>
 #include "dispatcher_ptr.h"
-
+#include "util_plugins.h"
 #include "default_keygen.h"
 
 extern "C" void P_debug(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
@@ -70,6 +70,11 @@ extern "C" void P_move(const std::string &out_field, std::string& option, nlohma
     record[out_field] = std::move(fpnt::d->in_pkts[idx][option]);
 }
 
+
+/**
+ * @brief Packet field aggregation for flow, without skipping empty fields
+ * 
+ */
 extern "C" void P_agg4flow(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
     // option contains out_pkt field name
     // idx contains flow idx
@@ -87,6 +92,10 @@ extern "C" void P_agg4flow(const std::string &out_field, std::string& option, nl
     record[out_field] = result;
 }
 
+/**
+ * @brief Packet field aggregation for flow, with skipping empty fields
+ * 
+ */
 extern "C" void P_skipagg4flow(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
     // option contains out_pkt field name
     // idx contains flow idx
@@ -106,9 +115,60 @@ extern "C" void P_skipagg4flow(const std::string &out_field, std::string& option
     record[out_field] = result;
 }
 
+/**
+ * @brief Interarrival Time Sequence for Flow
+ * 
+ */
+extern "C" void P_iat4flow(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
+    // option contains out_pkt field name
+    // idx contains flow idx
+    std::string result = "";
+    std::vector<double> arrival_times;
+
+    for(auto & pkt_idx: fpnt::d->pkt_idxs_from_flow[record["__flow_key"]]) {
+        if (fpnt::d->out_pkts[pkt_idx][option].is_null()) {
+            std::cerr << "P_iat4flow: Empty arrival time value!" << std::endl;
+            exit(1);
+        }
+
+        double cur_arrival_time = stod(fpnt::d->out_pkts[pkt_idx][option].get<std::string>());
+        arrival_times.push_back(cur_arrival_time);
+    }
+
+    std::vector<double> iats;
+    if (arrival_times.size() > 1) {
+        for (size_t i = 1; i < arrival_times.size(); ++i) {
+            iats.push_back(arrival_times[i] - arrival_times[i - 1]);
+        }
+
+        record[out_field] = vectorToString(iats);
+    } else {
+        record[out_field] = "";
+    }
+}
+
+/**
+ * @brief Flow count for Flowset
+ * 
+ */
+extern "C" void P_flowcount(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
+    record[out_field] = std::to_string(fpnt::d->flow_keys_from_flowset[record["__flowset_key"]].size());
+}
 
 
-extern "C" void P_agg4flowset(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
+/**
+ * @brief Packet count for Flow
+ * 
+ */
+extern "C" void P_pktcount(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
+    record[out_field] = std::to_string(fpnt::d->pkt_idxs_from_flow[record["__flow_key"]].size());
+}
+
+/**
+ * @brief Packet field aggregation for flowset, without skipping empty fields
+ * 
+ */
+extern "C" void P_pf_agg4flowset(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
     // option contains out_pkt field name
     // idx contains flow idx
     std::string result = "";
@@ -125,6 +185,10 @@ extern "C" void P_agg4flowset(const std::string &out_field, std::string& option,
     record[out_field] = result;
 }
 
+/**
+ * @brief Packet field aggregation for flowset, with skipping empty fields
+ * 
+ */
 extern "C" void P_skipagg4flowset(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
     // option contains out_pkt field name
     // idx contains flow idx
@@ -143,7 +207,51 @@ extern "C" void P_skipagg4flowset(const std::string &out_field, std::string& opt
     record[out_field] = result;
 }
 
+/**
+ * @brief Flow field aggregation for flowset, without skipping empty fields
+ * 
+ */
+extern "C" void P_ff_agg4flowset(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
+    // option contains out_pkt field name
+    // idx contains flow idx
+    std::string result = "";
+    bool first = true;
+    for(auto & flow_key: fpnt::d->flow_keys_from_flowset[record["__flowset_key"]]) {
+        if (first) {
+            first = false;
+        } else {
+            result += ",";
+        }
 
+        auto flow_idx = fpnt::d->flow_idx_from_flow[flow_key];
+        if (!fpnt::d->out_flows[flow_idx][option].is_null())
+            result += fpnt::d->out_flows[flow_idx][option].get<std::string>();
+    }
+    record[out_field] = result;
+}
+
+/**
+ * @brief Flow field aggregation for flowset, with skipping empty fields
+ * 
+ */
+extern "C" void P_ff_skipagg4flowset(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
+    // option contains out_pkt field name
+    // idx contains flow idx
+    std::string result = "";
+    bool first = true;
+    for(auto & flow_key: fpnt::d->flow_keys_from_flowset[record["__flowset_key"]]) {
+        auto flow_idx = fpnt::d->flow_idx_from_flow[flow_key];
+        if (!fpnt::d->out_flows[flow_idx][option].is_null() && fpnt::d->out_flows[flow_idx][option] != "") {
+            if (first) {
+                first = false;
+            } else {
+                result += ",";
+            }
+                result += fpnt::d->out_flows[flow_idx][option].get<std::string>();
+        }
+    }
+    record[out_field] = result;
+}
 
 /** P_fill1: fill if empty
  * 
@@ -152,6 +260,50 @@ extern "C" void P_fill1(const std::string &out_field, std::string& option, nlohm
     if(record[out_field] == "")
       record[out_field] = fpnt::d->in_pkts[idx][option];
 }
+
+/** P_firstcpy4flow: copy the first packet's value for flow (typically expecting that the packets in the flow have the same value)
+ * 
+ */
+extern "C" void P_firstcpy4flow(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
+    auto pkt_idx = fpnt::d->pkt_idxs_from_flow[record["__flow_key"]][0];
+    record[out_field] = fpnt::d->out_pkts[pkt_idx][option];
+}
+
+/**
+ * @brief Interarrival Time Sequence for Flowset
+ * This Interarrival Time Sequence definition is taken from:
+ * Susu Cui, Cong Dong, Meng Shen, Yuliang Liu, Bo Jiang, and Zhigang Lu, "CBSeq: A Channel-Level Behavior Sequence for Encrypted Malware Traffic Detection," IEEE Transactions on Information Forensics and Security, Vol. 18, 2023.
+ * 
+ */
+extern "C" void P_iat4flowset(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
+    // option contains out_pkt field name
+    // idx contains flow idx
+    std::string result = "";
+    std::vector<double> arrival_times;
+
+    for(auto & flow_key: fpnt::d->flow_keys_from_flowset[record["__flowset_key"]]) {
+        auto first_pkt_idx = fpnt::d->pkt_idxs_from_flow[flow_key][0];
+        if (fpnt::d->out_pkts[first_pkt_idx][option].is_null()) {
+            std::cerr << "P_iat4flowset: Empty arrival time value!" << std::endl;
+            exit(1);
+        }
+
+        double cur_arrival_time = stod(fpnt::d->out_pkts[first_pkt_idx][option].get<std::string>());
+        arrival_times.push_back(cur_arrival_time);
+    }
+
+    std::vector<double> iats;
+    if (arrival_times.size() > 1) {
+        for (size_t i = 1; i < arrival_times.size(); ++i) {
+            iats.push_back(arrival_times[i] - arrival_times[i - 1]);
+        }
+
+        record[out_field] = vectorToString(iats);
+    } else {
+        record[out_field] = "";
+    }
+}
+
 
 /** P_fillOpt: fill with option value
  * 
