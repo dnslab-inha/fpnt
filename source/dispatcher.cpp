@@ -65,6 +65,7 @@ namespace fpnt {
     flowset_idx = -1;
     in_pkts.clear();    out_pkts.clear();    out_flows.clear();    out_flowsets.clear();
     keys_pkt.clear(); keys_flow.clear(); keys_flowset.clear();
+    flow_idx_from_flow.clear(); 
     pkt_idxs_from_flow.clear(); pkt_idxs_from_flowset.clear(); flow_keys_from_flowset.clear();
     tmp.clear();
     cur_filepath = filepath;
@@ -190,9 +191,9 @@ namespace fpnt {
       auto flow_key = genKey_flow(in_pkts[idx], map_t);
       in_pkts[idx]["flow_key"] = flow_key;
       pkt_idxs_from_flow[flow_key].push_back(idx);
-      flow_keys_from_flowset[flowset_key].push_back(flow_key);
       result = keys_flow.insert(flow_key);
       if (result.second) {  // if new flow key
+        flow_keys_from_flowset[flowset_key].push_back(flow_key);
         nlohmann::json out_flow;
         out_flow["__flow_key"] = flow_key;
         out_flow["__flowset_key"] = flowset_key;

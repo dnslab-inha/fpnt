@@ -273,7 +273,7 @@ extern "C" void P_firstcpy4flow(const std::string &out_field, std::string& optio
  * @brief Interarrival Time Sequence for Flowset
  * This Interarrival Time Sequence definition is taken from:
  * Susu Cui, Cong Dong, Meng Shen, Yuliang Liu, Bo Jiang, and Zhigang Lu, "CBSeq: A Channel-Level Behavior Sequence for Encrypted Malware Traffic Detection," IEEE Transactions on Information Forensics and Security, Vol. 18, 2023.
- * 
+ * The first value of this sequence is always 0, due to the definition.
  */
 extern "C" void P_iat4flowset(const std::string &out_field, std::string& option, nlohmann::json& record, fpnt::Mapper& map, size_t idx) {
     // option contains out_pkt field name
@@ -293,15 +293,14 @@ extern "C" void P_iat4flowset(const std::string &out_field, std::string& option,
     }
 
     std::vector<double> iats;
+    iats.push_back(0);
     if (arrival_times.size() > 1) {
         for (size_t i = 1; i < arrival_times.size(); ++i) {
             iats.push_back(arrival_times[i] - arrival_times[i - 1]);
         }
-
-        record[out_field] = vectorToString(iats);
-    } else {
-        record[out_field] = "";
     }
+
+    record[out_field] = vectorToString(iats);
 }
 
 
