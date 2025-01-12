@@ -15,6 +15,7 @@ namespace fpnt {
   }
 
   Mapper& CSVReader::read(Loader* loader) {
+    csv::CSVReader internal_reader(path, format);
 //    std::cout << "READ: " << path << std::endl;
     size_t counter = 0;
     for (auto& row : internal_reader) {
@@ -87,6 +88,7 @@ namespace fpnt {
   };
 
   TSharkMapper& TSharkCSVReader::read(Loader* loader) {
+    csv::CSVReader internal_reader(path, format);    
 //    std::cout << "READ: " << path << std::endl;
     std::unordered_map<std::string, std::vector<std::string> > dfref_dirs;
 
@@ -250,17 +252,17 @@ namespace fpnt {
       in.unget();
 
     size_t no_pkts = 0;
-    size_t early_stop_pkts_per_pcap = config["early_stop_pkts_per_pcap"].get<size_t>();
+    size_t early_stop_pkts = config["early_stop_pkts"].get<size_t>();
 
     // technical note: CSVParser supports inputstream read but there are two reasons not to use
     // the function even though this approach may degrade its performance: Reason 1: CSVParser
     // seems not to correctly read pstream, a inherited class of inputsteram. Reason 2: We need to
     // implement early stop, so that line-by-line read is essential.
     while (std::getline(in, line)) {
-      if (no_pkts >= early_stop_pkts_per_pcap) {  // if early_stop_per_pcap == -1, this early stop
+      if (no_pkts >= early_stop_pkts) {  // if early_stop_pkts == -1, this early stop
                                                   // function does not work.
         rangout(fmt::format("splitter: early_stopped {} in_pkts / {} in_pkts", no_pkts,
-                            early_stop_pkts_per_pcap),
+                            early_stop_pkts),
                 rang::fg::blue);
         in.close();
         break;
@@ -283,7 +285,7 @@ namespace fpnt {
     return map;
   }
 
-  std::string genTsharkCmd(const nlohmann::json config, TSharkMapper& map_t,
+  std::string genTsharkCmd(const nlohmann::json config, TSharkMapper& in_map,
                            std::filesystem::path& filepath, size_t cnt) {
     std::string command = config["tshark_path"].get<std::string>();
     command += " " + config["tshark_option"].get<std::string>();
@@ -291,7 +293,7 @@ namespace fpnt {
     command += " -T fields";
 
     // unordered_map이 빠르지만 여기서는 vector로 저장해둔 걸 써야 정렬된 순서대로 디버깅이 가능
-    for (const auto& field : map_t.getFields()) command += " -e \"" + field + "\"";
+    for (const auto& field : in_map.getFields()) command += " -e \"" + field + "\"";
 
     command += " -r " + std::string(filepath.c_str());
 

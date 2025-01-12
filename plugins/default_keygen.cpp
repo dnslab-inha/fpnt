@@ -3,11 +3,11 @@
 #include <arpa/inet.h>
 #include <fmt/core.h>
 
-const std::string genKey_pkt_default(const nlohmann::json& pkt, fpnt::Mapper& map) {
+const std::string genKey_pkt_default(const nlohmann::json& pkt, std::string& granularity, std::string& key) {
     return std::to_string(pkt["idx"].get<size_t>());
 }
 
-const std::string genKey_flow_default(const nlohmann::json& pkt, fpnt::Mapper& map) {
+const std::string genKey_flow_default(const nlohmann::json& pkt, std::string& granularity, std::string& key) {
     std::string cur_key;
     //std::string cur_srcport = std::to_string(pkt["tcp.srcport"].get<std::size_t>());
     //std::string cur_dstport = std::to_string(pkt["tcp.dstport"].get<std::size_t>());
@@ -103,7 +103,7 @@ const std::string genKey_flow_default(const nlohmann::json& pkt, fpnt::Mapper& m
 }
 
 
-const std::string genKey_flowset_default(const nlohmann::json& pkt, fpnt::Mapper& map) {
+const std::string genKey_flowset_default(const nlohmann::json& pkt, std::string& granularity, std::string& key) {
     std::string cur_key;
 
     std::string cur_src = pkt["ip.src"].get<std::string>();

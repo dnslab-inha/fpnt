@@ -13,6 +13,7 @@
 //#include <fstream>
 #include <nlohmann/json.hpp>
 #include <set>
+#include <unordered_map>
 
 namespace fpnt {
   void chkOutputDir(const std::filesystem::path& pcap, bool force_remove);
@@ -27,52 +28,70 @@ namespace fpnt {
     bool force_remove;
 
     std::string csv_path;  // csv_path must be appeared before '*Reader's, for initialization issue.
-    std::string input_path;
-    std::string output_path;
+    std::string in_path;
+    std::string out_path;
     std::set<std::filesystem::path> sorted;
 
-    TSharkCSVReader reader_t;
-    CSVReader reader_outfmt_pkt;
-    CSVReader reader_outfmt_flow;
-    CSVReader reader_outfmt_flowset;
+    TSharkCSVReader in_reader;
+    // CSVReader reader_outfmt_pkt;
+    // CSVReader reader_outfmt_flow;
+    // CSVReader reader_outfmt_flowset;
+    std::vector<CSVReader> out_readers;
     Loader loader;
 
     std::filesystem::path cur_filepath;
+
+    // std::pair<size_t, size_t> Dispatcher::chk_get_valid(std::string& from, std::string& to);
     
   public:
     // during processing, these variables maintains the current position
     // this information can be used for preprocessing functions
     size_t file_idx; // Note: since sorted_pcap_paths is C++ set, this idx cannot be used for path access; get_out_filepath() must be used;
-    size_t pkt_idx;
-    size_t flow_idx;
-    size_t flowset_idx;
+    size_t in_pkt_idx; // v0.3
+    // size_t pkt_idx;
+    // size_t flow_idx;
+    // size_t flowset_idx;
+    std::vector<size_t> idxs; // v0.3
+    std::vector<std::string> g_lvs; // v0.3, granularity levels
+    std::unordered_map<std::string, size_t> g_lv_idx; // v0.3, granularity level inverse map
 
-    TSharkMapper map_t;
-    Mapper map_pkt;
-    Mapper map_flow;
-    Mapper map_flowset;
+    TSharkMapper in_map;
+    // Mapper map_pkt;
+    // Mapper map_flow;
+    // Mapper map_flowset;
+    std::unordered_map<std::string,Mapper> out_maps; // Mapper will be copied from readers...
 
     std::vector<nlohmann::json> in_pkts;
-    std::vector<nlohmann::json> out_pkts;
-    std::vector<nlohmann::json> out_flows;
-    std::vector<nlohmann::json> out_flowsets;
+    // std::vector<nlohmann::json> out_pkts;
+    // std::vector<nlohmann::json> out_flows;
+    // std::vector<nlohmann::json> out_flowsets;
+    std::unordered_map<std::string, std::unordered_map<std::string, nlohmann::json>> out; // v0.3 out record는 key로만 접근함
 
-    std::set<std::string> keys_pkt;
-    std::set<std::string> keys_flow;
-    std::set<std::string> keys_flowset;
-    std::map<std::string, size_t> flow_idx_from_flow;
-    std::map<std::string, std::vector<size_t>> pkt_idxs_from_flow;
-    std::map<std::string, std::vector<size_t>> pkt_idxs_from_flowset;
-    std::map<std::string, std::vector<std::string>> flow_keys_from_flowset;
+    // std::set<std::string> keys_pkt;
+    // std::set<std::string> keys_flow;
+    // std::set<std::string> keys_flowset;
+    std::unordered_map<std::string, std::set<std::string>> out_keys; // v0.3
+    std::unordered_map<std::string, std::vector<std::string>> out_idx2key; // v0.3
+    std::unordered_map<std::string, std::unordered_map<std::string,size_t>> out_key2idx; // v0.3
+    std::unordered_map<std::string, std::unordered_map<std::string,std::vector<std::string>>> out_child_keys; // v0.3
+
+    // std::map<std::string, size_t> flow_idx_from_flow; // get_idx(key, "flow")
+    // std::map<std::string, std::vector<size_t>> pkt_idxs_from_flow; // get_idxs(key, "flow", "pkt")
+    // std::map<std::string, std::vector<size_t>> pkt_idxs_from_flowset; // get_idxs(key, "flowset", "pkt")
+    // std::map<std::string, std::vector<std::string>> flow_keys_from_flowset; // get_keys(key, "flowset", "flow")
+    size_t get_idx(std::string key, std::string from, std::string to = "eq"); // v0.3
+    std::string get_key(std::string key, std::string from, std::string to = "eq"); //v0.3
+    std::vector<size_t> get_idxs(std::string key, std::string from, std::string to); // v0.3
+    std::vector<std::string> get_keys(std::string key, std::string from, std::string to); // v0.3
 
     nlohmann::json tmp;
 
     const std::set<std::filesystem::path>& set_sorted_pcap_paths(std::string path);
     const std::set<std::filesystem::path>& get_sorted_pcap_paths() { return this->sorted; };
-    const std::filesystem::path get_in_filepath() { return input_path / cur_filepath; };
+    const std::filesystem::path get_in_filepath() { return in_path / cur_filepath; };
     const std::filesystem::path get_out_filepath(std::string postfix = "") { 
       const std::string output_type = config["output_type"].get<std::string>();
-      auto result = output_path / cur_filepath;
+      auto result = out_path / cur_filepath;
       result.replace_extension(postfix + output_type);
       return result; };
 
@@ -85,11 +104,13 @@ namespace fpnt {
     void dispatch();
 
     void process_main(const std::filesystem::path filepath);
-    void process_pkt();
-    void process_flow();
-    void process_flowset();
+    void process_keygen();
+    void process(std::string granularity);
+    // void process_pkt();
+    // void process_flow();
+    // void process_flowset();
 
-    void writer(std::string postfix = "");
+    void writer(std::string granularity = "");
 
     void print_buf_pkt(std::string out_pkt_filepath);
   };

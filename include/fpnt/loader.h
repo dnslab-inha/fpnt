@@ -13,8 +13,8 @@
 namespace fpnt
 {
 
-    typedef void (*fnptr_PrepFn)(const std::string&, std::string&, nlohmann::json&, Mapper&, size_t);
-    typedef const std::string (*fnptr_genKeyFn)(const nlohmann::json&, Mapper&);
+    typedef void (*fnptr_PrepFn)(const std::string&, nlohmann::json&, std::string&, const std::string&, const std::string&);
+    typedef const std::string (*fnptr_genKeyFn)(const nlohmann::json&, std::string&, std::string&);
 
 class Loader {
     private:

@@ -1,5 +1,5 @@
 "field","name","preprocess_fns","options"
-"packetkey","Packet Key","P_savePktKey",";"
+"packetkey","Packet Key","P_saveKey","pkt;"
 "time_epoch","time epoch","P_cpy","frame.time_epoch"
 "srcipaddr","SrcIPv4Addr","P_cpy","ip.src"
 "srcport","SrcPort","P_cpy;P_fill1","tcp.srcport;udp.srcport"
