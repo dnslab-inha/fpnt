@@ -1,4 +1,4 @@
-# fpnt: a flexible preprocesing framework for network traffic analysis
+# fpnt: a flexible preprocessing framework for network traffic analysis
 
 `fpnt` is a C++-based framework to preprocess packet capture files (in `pcap` or `pcapng` format) in order to generate the corresponding Comma-Separated Values (CSV) files with varying levels of traffic granularity: packet, flow, and flowset. For each packet in the packet capture files, extracting and preprocessing various features is possible with the help of `tshark`-based decoding and filtering. Furthermore, by changing (or choosing) the flow and flowset key generation functions written in C++, you can define the notion of flow and flowset for your specific purpose. In addition, loading preprocessing functions as plugins (*i.e.*, shared object in Unix-like systems) is also supported in `fpnt`. Currently, `fpnt` only supports Unix-like systems, and has been tested in Ubuntu Linux.
 
