@@ -104,7 +104,7 @@ namespace fpnt {
     void dispatch();
 
     void process_main(const std::filesystem::path filepath);
-    void process_keygen();
+    void process_base();
     void process(std::string granularity);
     // void process_pkt();
     // void process_flow();

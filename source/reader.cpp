@@ -14,6 +14,36 @@ namespace fpnt {
     return format;
   }
 
+  void parseVer(const std::string& version, int& x, int& y, int& z) {
+    std::stringstream ss(version);
+    char dot;
+    ss >> x >> dot >> y >> dot >> z;
+  }
+
+  void verValid(std::string& field, std::string& name, std::string& ver, int a, int b, int c) {
+    int x1, y1, z1;
+    int x2, y2, z2;
+    char temp;
+    std::stringstream ss(ver);
+    ss >> x1 >> temp >> y1 >> temp >> z1 >> temp >> temp >> temp >> temp >> x2 >> temp >> y2 >> temp >> z2;
+
+    if ((a > x1 || (a == x1 && (b > y1 || (b == y1 && c >= z1)))) && 
+        (a < x2 || (a == x2 && (b < y2 || (b == y2 && c <= z2))))) {
+        return;
+    }
+    
+    std::cout << "tshark Version Validation is failed!" << std::endl;
+    std::cout << field << "(" << name << ")" << "'s Version Range is " << ver 
+    << " but the current tshark version is " << a << "." << b << "." << c << std::endl;
+
+    if (a > x2 || (a == x2 && (b > y2 || (b == y2 && c > z2)))) {
+      std::cout << "In this case, display filer reference can be outdated so fpnt will not be terminated." << std::endl;
+      return;
+    }
+    
+    exit(1);
+  }
+
   Mapper& CSVReader::read(Loader* loader) {
     csv::CSVReader internal_reader(path, format);
 //    std::cout << "READ: " << path << std::endl;
@@ -88,7 +118,25 @@ namespace fpnt {
   };
 
   TSharkMapper& TSharkCSVReader::read(Loader* loader) {
-    csv::CSVReader internal_reader(path, format);    
+    std::string line;
+    bool first = true;
+    bool version_validation = true;
+    while(std::getline(in, line)) {
+      if (first) {
+        first = false;
+        size_t pos = line.find_last_of(" ");
+        if (pos == std::string::npos) {
+          std::cout << "tshark does not have a proper version string. version validation will be offed." << std::endl;
+          version_validation = false;
+          break;
+        }
+        version = line.substr(pos + 1);
+        parseVer(version, major, minor, patch);
+      }
+    }
+
+
+    csv::CSVReader internal_reader(path, format);
 //    std::cout << "READ: " << path << std::endl;
     std::unordered_map<std::string, std::vector<std::string> > dfref_dirs;
 
@@ -214,6 +262,10 @@ namespace fpnt {
             ver = x;
             break;
         }
+      }
+      
+      if (version_validation) {
+        verValid(field, name, ver, major, minor, patch);
       }
 
       // Now, we have unempty name

@@ -147,3 +147,11 @@ const std::string genKey_flowset_default(const nlohmann::json& pkt, std::string&
 
     return cur_key;
 }
+
+const std::string genKey_pkt_cbr(const nlohmann::json& pkt, std::string& granularity, std::string& key) {
+    return std::to_string(pkt["idx"].get<size_t>()) + "_" + pkt["wlan.ra"].get<std::string>() + "_" + pkt["wlan.ta"].get<std::string>();
+}
+
+const std::string genKey_protocol_default(const nlohmann::json& pkt, std::string& granularity, std::string& key) {
+    return pkt["_ws.col.protocol"].get<std::string>();
+}

@@ -1,0 +1,20 @@
+{
+    "multiprocessing": false,
+    "input_pcap_path": "in_pcap_bfm",
+    "output_path": "out_bfm",
+    "output_type": "csv",
+    "plugins_path": "./build/plugins/libFPNT_PLUGINS.so",
+    "force_remove": true,
+    "dfref_path": "dfref",
+    "granularities": "pkt",
+    "genKey_pkt": "genKey_pkt_cbr",
+    "early_stop_pkts": -1,
+    "configcsv_path": "config_bfm",
+    "tshark_path": "tshark",
+    "tshark_displayfilter": "frame",
+    "tshark_option": "-V",
+    "fpnt_tshark_error_log": "/tmp/fpnt_tshark_err.log",
+    "log_numbering_concurrency": true,
+    "_comment1": "output directory must be an empty directory. otherwise, it will be deleted.",
+    "_comment2": "early_stop_pkts will not work if it is -1"
+}

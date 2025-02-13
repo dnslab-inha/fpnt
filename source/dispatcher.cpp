@@ -5,8 +5,15 @@
 #include <set>
 #include <thread>
 
+#include <csignal>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
 namespace fpnt {
-  const unsigned int max_concurrency = std::thread::hardware_concurrency();
+  unsigned int max_concurrency = std::thread::hardware_concurrency();
+  bool multiprocessing = false;
+  std::set<pid_t> child_processes;
 
   std::set<std::string> default_extensions() {
     std::set<std::string> result;
@@ -15,34 +22,36 @@ namespace fpnt {
     return result;
   }
 
+  void signal_handler(int signum) {
+    //std::cout << "Signal Handler multiprocessing" << multiprocessing << std::endl;
+    if (multiprocessing) {
+      
+      for (pid_t pid : child_processes) {
+          std::cout << "Killing " << pid << "..." << std::endl;
+          kill(pid, SIGTERM);
+          waitpid(pid, nullptr, 0); // Wait for the child process to terminate
+      }
+      
+      exit(signum);
+    }
+  }
+
   Dispatcher::Dispatcher(const nlohmann::json config, std::set<std::string> extensions)
       : config(config),
         extensions(extensions),
         csv_path(config["configcsv_path"].get<std::string>() + "/"),
         in_path(config["input_pcap_path"].get<std::string>()),
         out_path(config["output_path"].get<std::string>()),
-        in_reader(csv_path + "input_tshark.csv", config["dfref_path"].get<std::string>()),
-        // reader_outfmt_pkt(csv_path + "output_pkt.csv"),
-        // reader_outfmt_flow(csv_path + "output_flow.csv"),
-        // reader_outfmt_flowset(csv_path + "output_flowset.csv"),
+        in_reader(config["tshark_path"].get<std::string>(), csv_path + "input_tshark.csv", config["dfref_path"].get<std::string>()),
         loader{config["plugins_path"].get<std::string>()}
-  // map_pkt(reader_outfmt_pkt.read(&loader)),
-  // map_flow(reader_outfmt_flow.read(&loader)),
-  // map_flowset(reader_outfmt_flowset.read(&loader))
   {
     file_idx = -1;
     in_pkt_idx = -1;
-    // pkt_idx = -1;
-    // flow_idx = -1;
-    // flowset_idx = -1;  // set the processing idxes infinity
-
     in_map = TSharkMapper(in_reader.read());
 
     auto str_granularities = config["granularities"].get<std::string>();
     g_lvs = split(config["granularities"].get<std::string>(), ',');
     idxs.clear();
-    // g_lvs.clear();
-    // g_lv_idx.clear();
     out.clear();
     out_readers.clear();
     out_maps.clear();
@@ -60,11 +69,6 @@ namespace fpnt {
 
     force_remove = config["force_remove"].get<bool>();
     // std::cout << csv_path << std::endl;
-
-    // in_map.print();
-    // map_pkt.print();
-    // map_flow.print();
-    // map_flowset.print();
 
     Dispatcher** d = (Dispatcher**)loader.getDispatcherPtr();
     *d = this;
@@ -87,18 +91,7 @@ namespace fpnt {
     in_pkt_idx = -1;
     in_pkts.clear();
 
-    // TO BE DELETED
-    // pkt_idx = -1;
-    // flow_idx = -1;
-    // flowset_idx = -1;
-    // out_pkts.clear();    out_flows.clear();    out_flowsets.clear();
-    // keys_pkt.clear(); keys_flow.clear(); keys_flowset.clear();
-    // flow_idx_from_flow.clear();
-    // pkt_idxs_from_flow.clear(); pkt_idxs_from_flowset.clear(); flow_keys_from_flowset.clear();
-
     idxs.clear();
-    // g_lvs.clear();
-    // g_lv_idx.clear();
     out.clear();
     out_readers.clear();
     out_maps.clear();
@@ -122,40 +115,42 @@ namespace fpnt {
 
     reader_out_tshark.read();  // in_pkts will be filled by invoking this function.
 
-    process_keygen();
+    process_base();
     for (size_t i = 0; i < g_lvs.size(); i++) {
       process(g_lvs[i]);
     }
-    // process_pkt();
-    // process_flow();
-    // process_flowset();
 
     for (size_t i = 0; i < g_lvs.size(); i++) {
       writer(g_lvs[i]);
     }
 
-    // writer("pkt.");
-    // writer("flow.");
-    // writer("flowset.");
-
     // print_buf_pkt(out_pkt_filepath.c_str());
-
-    // std::cout << "??" << std::endl;
-    // std::string a;
-    // nlohmann::json b;
-    // b["B"] = "";
-    // //P_cpy(const std::string &out_field, std::string& option, nlohmann::json& record,
-    // fpnt::Mapper& map, size_t idx) std::string d = "P_cpy"; std::string e =
-    // "frame.time_epoch"; auto c = loader.getPrepFn(d); c("B", e, b, in_map, 0); std::cout <<
-    // "asdasdasdasdasd " << b["B"] << std::endl; std::cout << "dispatch" << this << std::endl;
-    // std::cout << "DUMPed solution" << in_pkts[0].dump() << std::endl;
   }
 
   void Dispatcher::dispatch() {
-    size_t no_processes = 0;
+
+    try {
+      multiprocessing = config.at("multiprocessing").get<bool>();
+    } catch (nlohmann::json::basic_json::out_of_range& e) {
+      multiprocessing = false;
+    }
+
+    if (multiprocessing) {
+      //std::cout << "signal registered!" << std::endl;
+      signal(SIGINT, signal_handler);
+    }
+
+    try {  // https://json.nlohmann.me/features/element_access/checked_access/#notes
+      int temp_max_concurrency = config.at("max_concurrency").get<int>();
+      if (temp_max_concurrency > 0)
+        max_concurrency = temp_max_concurrency;
+    } catch (nlohmann::json::basic_json::out_of_range& e) {
+      // Do Nothing
+    }
+
 
     for (auto filepath : sorted) {
-      if (config["multiprocessing"] == true) {
+      if (multiprocessing == true) {
         int rc = fork();
 
         if (rc < 0) {
@@ -163,20 +158,21 @@ namespace fpnt {
           exit(1);
         } else if (rc > 0) {  // parent
           counter++;
-          no_processes += 1;
+          child_processes.insert(rc);
           //          std::cout << "Counter: " << no_processes << std::endl;
-          if (no_processes > max_concurrency) {
+          if (child_processes.size() > max_concurrency) {
             int wc = wait(NULL);
             if (wc == -1) {
               if (errno != ECHILD) {
                 std::cerr << "dispatch: wait() has unusual errno: " << strerror(errno) << std::endl;
               }
             } else {
-              no_processes -= 1;
+              child_processes.erase(wc);
               //              std::cout << "Counter: " << no_processes << std::endl;
             }
           }
         } else {  // child
+          std::cout << "child" << std::endl;
           process_main(filepath);
           sleep(5);
           exit(0);
@@ -185,14 +181,16 @@ namespace fpnt {
         process_main(filepath);
     }
 
-    while (config["multiprocessing"] && no_processes > 0) {
-      int wc = wait(NULL);
+    //std::cout << "parent multiprocessing no_processes " << multiprocessing << " " << child_processes.size() << std::endl;
+
+    for(auto pid : child_processes) {
+      int wc = waitpid(pid, nullptr, 0);
       if (wc == -1) {
-        if (errno != ECHILD) {
-          std::cerr << "dispatch: wait() has unusual errno: " << strerror(errno) << std::endl;
-        }
+        std::cerr << "dispatch: wait() has unusual errno: " << strerror(errno) << std::endl;
+        exit(1);
       } else {
-        no_processes -= 1;
+        //std::cout << "pid " << wc << "is terminated." << std::endl;
+        child_processes.erase(pid);
         // std::cout << "Counter: " << no_processes << std::endl;
       }
     }
@@ -209,7 +207,7 @@ namespace fpnt {
     }
   }
 
-  void Dispatcher::process_keygen() {
+  void Dispatcher::process_base() {
     // 초기화
     in_pkt_idx = -1;
     for (size_t i = 0; i < g_lvs.size(); i++) {
@@ -308,156 +306,8 @@ namespace fpnt {
     idxs[ptr_g] = -1;
   }
 
-  /*
-    void Dispatcher::process_pkt() {
-      flow_idx = -1;
-      flowset_idx = -1;
-
-      // optimization for prep_fns_opts
-      std::vector<std::vector<std::pair<std::string, std::string>>> vec_prep_fns_opts;
-      for (auto &out_field: map_pkt.getFields()) {
-        auto prep_fns_opts = map_pkt.getPrepFns(out_field);
-        vec_prep_fns_opts.push_back(prep_fns_opts);
-      }
-
-      auto genKey_pkt = loader.getGenKeyFn(config["genKey_pkt"]);
-      auto genKey_flow = loader.getGenKeyFn(config["genKey_flow"]);
-      auto genKey_flowset = loader.getGenKeyFn(config["genKey_flowset"]);
-
-      // this loop assumes that one in_pkt == one out_pkt
-      // so that after generating keys out pkts are inserted immediately
-      for (size_t idx = 0; idx < in_pkts.size(); idx++) {  // for each in_pkt
-        pkt_idx = idx;
-        // obtain keys for input packet (in_pkt)
-        auto flowset_key = genKey_flowset(in_pkts[idx], in_map);
-        in_pkts[idx]["flowset_key"] = flowset_key;
-        pkt_idxs_from_flowset[flowset_key].push_back(idx);
-        auto result = keys_flowset.insert(flowset_key);
-        if (result.second) {  // if new flowset key
-          nlohmann::json out_flowset;
-          out_flowset["__flowset_key"] = flowset_key;
-          out_flowsets.push_back(out_flowset);
-        }
-
-        auto flow_key = genKey_flow(in_pkts[idx], in_map);
-        in_pkts[idx]["flow_key"] = flow_key;
-        pkt_idxs_from_flow[flow_key].push_back(idx);
-        result = keys_flow.insert(flow_key);
-        if (result.second) {  // if new flow key
-          flow_keys_from_flowset[flowset_key].push_back(flow_key);
-          nlohmann::json out_flow;
-          out_flow["__flow_key"] = flow_key;
-          out_flow["__flowset_key"] = flowset_key;
-          flow_idx_from_flow[flow_key] = out_flows.size();
-          out_flows.push_back(out_flow);
-        }
-
-        auto pkt_key = genKey_pkt(in_pkts[idx], in_map);
-        in_pkts[idx]["pkt_key"] = pkt_key;
-        result = keys_pkt.insert(pkt_key);
-        if (!result.second) {  // if not new packet key
-          // TODO
-        }
-
-        // new packet key found!
-        nlohmann::json out_pkt;
-        out_pkt["__pkt_key"] = pkt_key;
-        out_pkt["__flow_key"] = flow_key;
-        out_pkt["__flowset_key"] = flowset_key;
-
-        size_t field_idx = 0;
-        for (auto &out_field: map_pkt.getFields()) {
-          //std::cout << "Field:" << out_field << std::endl;
-          //out_pkt[out_field] = "";
-          //auto prep_fns_opts = map_pkt.getPrepFns(out_field);
-          //std::cout << "Size: " << prep_fns_opts.size() << std::endl;
-          //for (auto &[str_fn, option]: prep_fns_opts) {
-          for (auto &[str_fn, option]: vec_prep_fns_opts[field_idx]) {
-            //std::cout << str_fn << " " << option << std::endl;
-            auto prep_fn = loader.getPrepFn(str_fn);
-            prep_fn(out_field, option, out_pkt, map_pkt, idx);
-          }
-
-          if (out_pkt[out_field].is_null()) {
-            out_pkt[out_field] = "";
-          }
-          field_idx++;
-        }
-
-        //std::cout << out_pkt.dump() << std:: endl;
-
-        out_pkts.push_back(out_pkt);
-      }
-
-      pkt_idx = -1;
-    }
-
-    void Dispatcher::process_flow() {
-      pkt_idx = -1;
-      flowset_idx = -1;
-
-      // optimization for prep_fns_opts
-      std::vector<std::vector<std::pair<std::string, std::string>>> vec_prep_fns_opts;
-      for (auto &out_field: map_flow.getFields()) {
-        auto prep_fns_opts = map_flow.getPrepFns(out_field);
-        vec_prep_fns_opts.push_back(prep_fns_opts);
-      }
-
-      for (size_t idx = 0; idx < out_flows.size(); idx++) {  // for each in_pkt
-        flow_idx = idx;
-
-        size_t field_idx = 0;
-        for (auto &out_field: map_flow.getFields()) {
-          for (auto &[str_fn, option]: vec_prep_fns_opts[field_idx]) {
-            auto prep_fn = loader.getPrepFn(str_fn);
-            prep_fn(out_field, option, out_flows[idx], map_flow, idx);
-          }
-
-          if (out_flows[idx][out_field].is_null()) {
-            out_flows[idx][out_field] = "";
-          }
-          field_idx++;
-        }
-      }
-
-      flow_idx = -1;
-    }
-
-    void Dispatcher::process_flowset() {
-      pkt_idx = -1;
-      flow_idx = -1;
-
-      // optimization for prep_fns_opts
-      std::vector<std::vector<std::pair<std::string, std::string>>> vec_prep_fns_opts;
-      for (auto &out_field: map_flowset.getFields()) {
-        auto prep_fns_opts = map_flowset.getPrepFns(out_field);
-        vec_prep_fns_opts.push_back(prep_fns_opts);
-      }
-
-      for (size_t idx = 0; idx < out_flowsets.size(); idx++) {  // for each in_pkt
-        flowset_idx = idx;
-
-        size_t field_idx = 0;
-        for (auto &out_field: map_flowset.getFields()) {
-          for (auto &[str_fn, option]: vec_prep_fns_opts[field_idx]) {
-            auto prep_fn = loader.getPrepFn(str_fn);
-            prep_fn(out_field, option, out_flowsets[idx], map_flowset, idx);
-          }
-
-          if (out_flowsets[idx][out_field].is_null()) {
-            out_flowsets[idx][out_field] = "";
-          }
-          field_idx++;
-        }
-      }
-
-      flowset_idx = -1;
-    }
-
-  */
   void Dispatcher::writer(std::string granularity) {
     Mapper* cur_map = nullptr;
-    //std::vector<nlohmann::json>* buf;
     std::string postfix = granularity + ".";
 
     if (granularity == "") {  // print all in one
@@ -465,19 +315,6 @@ namespace fpnt {
     } else {
       cur_map = &out_maps[granularity];
     }
-
-    // if (postfix == "") {  // print all in one
-    //   // TODO: 다 합치려면 고려해야 할 것들이 좀 있음
-    // } else if (postfix == "pkt.") {
-    //   cur_map = &map_pkt;
-    //   buf = &out_pkts;
-    // } else if (postfix == "flow.") {
-    //   cur_map = &map_flow;
-    //   buf = &out_flows;
-    // } else if (postfix == "flowset.") {
-    //   cur_map = &map_flowset;
-    //   buf = &out_flowsets;
-    // }
 
     chkOutFilepath(get_out_filepath(postfix));
 
@@ -499,27 +336,6 @@ namespace fpnt {
     }
   }
 
-  // std::pair<size_t, size_t> Dispatcher::chk_get_valid(std::string& from, std::string& to) {
-  //   bool valid = false;
-  //   for (size_t i = 0; i < g_lvs.size(); i++) {
-  //     if (from == g_lvs[i]) {
-  //       for (size_t j = i; j < g_lvs.size(); j++) {
-  //         if (to == g_lvs[j]) {
-  //           valid = true;
-  //           return std::make_pair(i, j);
-  //         }
-  //       }
-  //     }
-  //   }
-
-  //   if (!valid) {
-  //         std::cerr << "get_* input is invalid!" << std::endl;
-  //         exit(1);
-  //   }
-  // }
-
-  /*
-   */
   size_t Dispatcher::get_idx(std::string key, std::string from, std::string to) {  // v0.3
     nlohmann::json *cnt_obj = &out[from][key];
     if (to == "eq" || from == to) {      

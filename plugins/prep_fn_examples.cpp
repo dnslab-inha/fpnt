@@ -59,7 +59,7 @@ extern "C" void P_move(std::string& option, nlohmann::json& record, const std::s
  * @brief Child granularity's field aggregation, without skipping empty fields
  * 
  */
-extern "C" void P_agg(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
+extern "C" void P_childagg(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
     // option contains out_pkt field name
     // idx contains flow idx
     std::string result = "";
@@ -82,7 +82,7 @@ extern "C" void P_agg(std::string& option, nlohmann::json& record, const std::st
  * @brief Packet field aggregation for flow, with skipping empty fields
  * 
  */
-extern "C" void P_skipagg(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
+extern "C" void P_skipchildagg(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
     // option contains out_pkt field name
     // idx contains flow idx
     std::string result = "";

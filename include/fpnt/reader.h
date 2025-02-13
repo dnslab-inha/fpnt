@@ -52,13 +52,22 @@ namespace fpnt {
   class TSharkCSVReader : public CSVReader {
   private:
     std::string dfref_path;
+    std::string version;
+    int major;
+    int minor;
+    int patch;
+
+    bool compareVersion(std::string );
+    redi::ipstream in;
 
   public:
     TSharkMapper map;
     TSharkCSVReader() = delete;
-    TSharkCSVReader(std::string path, std::string dfref_path,
+    TSharkCSVReader(std::string tshark_path, std::string path, std::string dfref_path,
                     csv::CSVFormat format = default_CSVFormat())
-        : CSVReader(path, format) {
+        : CSVReader(path, format),
+          in(redi::ipstream(tshark_path + " -v"))
+        {
       this->dfref_path = dfref_path;
     }
 
