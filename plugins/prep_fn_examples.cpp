@@ -223,18 +223,35 @@ extern "C" void P_fillOpt(std::string& option, nlohmann::json& record, const std
     record[field] = option;
 }
 
+
+/** P_saveKey: save the key corresponding to "option" granularity, of the current record, to the field value
+ * Please note this function does not check the availability of such key.
+ * 
+ */
 extern "C" void P_saveKey(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
     record[field] = record["__" + option + "_key"];
 }
 
+/** P_saveFlowKey: save the corresponding flow record's key, of the current record, to the field value
+ * Please note this function does not check the availability of such key.
+ * 
+ */
 extern "C" void P_saveFlowKey(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
     record[field] = record["__flow_key"];
 }
 
+/** P_saveFlowsetKey: save the corresponding flowset record's key, of the current record, to the field value
+ * Please note this function does not check the availability of such key.
+ * 
+ */
 extern "C" void P_saveFlowsetKey(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
     record[field] = record["__flowset_key"];
 }
 
+/** P_savePktKey: save the corresponding pkt's key, of the current record, to the field value
+ * Please note this function does not check the availability of such key, but due to the internal design of fpnt, this key must be available.
+ * 
+ */
 extern "C" void P_savePktKey(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
     record[field] = record["__pkt_key"];
 }

@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.14...3.22)
 
 project(
   FPNT
-  VERSION 0.2
+  VERSION 0.3
   DESCRIPTION "FPNT: a flexible preprocessor framework for network traffic"
   LANGUAGES CXX
 )
@@ -84,14 +84,14 @@ target_include_directories(
 # header paths
 string(TOLOWER ${PROJECT_NAME}/version.h VERSION_HEADER_LOCATION)
 
-packageProject(
-  NAME ${PROJECT_NAME}
-  VERSION ${PROJECT_VERSION}
-  NAMESPACE ${PROJECT_NAME}
-  BINARY_DIR ${PROJECT_BINARY_DIR}
-  INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
-  INCLUDE_DESTINATION include/${PROJECT_NAME}-${PROJECT_VERSION}
-  VERSION_HEADER "${VERSION_HEADER_LOCATION}"
-  COMPATIBILITY SameMajorVersion
-  DEPENDENCIES "fmt >= 11.0.2, nlohmann_json >= 3.11.3, csv >= 2.3.0, gcov"
-)
+# packageProject(
+#   NAME ${PROJECT_NAME}
+#   VERSION ${PROJECT_VERSION}
+#   NAMESPACE ${PROJECT_NAME}
+#   BINARY_DIR ${PROJECT_BINARY_DIR}
+#   INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
+#   INCLUDE_DESTINATION include/${PROJECT_NAME}-${PROJECT_VERSION}
+#   VERSION_HEADER "${VERSION_HEADER_LOCATION}"
+#   COMPATIBILITY SameMajorVersion
+#   DEPENDENCIES "nlohmann_json >= 3.11.3, csv >= 2.3.0, gcov"
+# )

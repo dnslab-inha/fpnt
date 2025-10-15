@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <algorithm>
 
 namespace fpnt {
   unsigned int max_concurrency = std::thread::hardware_concurrency();
@@ -142,8 +143,10 @@ namespace fpnt {
 
     try {  // https://json.nlohmann.me/features/element_access/checked_access/#notes
       int temp_max_concurrency = config.at("max_concurrency").get<int>();
-      if (temp_max_concurrency > 0)
+      if (temp_max_concurrency > 0) {
         max_concurrency = temp_max_concurrency;
+        std::cout << "max_concurrency: " << max_concurrency << std::endl;
+      }
     } catch (nlohmann::json::basic_json::out_of_range& e) {
       // Do Nothing
     }
@@ -160,7 +163,7 @@ namespace fpnt {
           counter++;
           child_processes.insert(rc);
           //          std::cout << "Counter: " << no_processes << std::endl;
-          if (child_processes.size() > max_concurrency) {
+          if (child_processes.size() >= max_concurrency - 1) {
             int wc = wait(NULL);
             if (wc == -1) {
               if (errno != ECHILD) {
@@ -183,6 +186,7 @@ namespace fpnt {
 
     //std::cout << "parent multiprocessing no_processes " << multiprocessing << " " << child_processes.size() << std::endl;
 
+    std::vector<pid_t> to_be_erased;
     for(auto pid : child_processes) {
       int wc = waitpid(pid, nullptr, 0);
       if (wc == -1) {
@@ -190,9 +194,12 @@ namespace fpnt {
         exit(1);
       } else {
         //std::cout << "pid " << wc << "is terminated." << std::endl;
-        child_processes.erase(pid);
+        to_be_erased.push_back(pid);
         // std::cout << "Counter: " << no_processes << std::endl;
       }
+    }
+    for(auto pid: to_be_erased) {
+      child_processes.erase(pid);
     }
   }
 
@@ -208,13 +215,13 @@ namespace fpnt {
   }
 
   void Dispatcher::process_base() {
-    // 초기화
+    // initialization
     in_pkt_idx = -1;
     for (size_t i = 0; i < g_lvs.size(); i++) {
       idxs[i] = -1;
     }
 
-    // 키 생성 함수 준비
+    // preparation of key generation
     std::vector<fnptr_genKeyFn> genKeyFns;
     for (size_t i = 0; i < g_lvs.size(); i++) {
       genKeyFns.push_back(loader.getGenKeyFn(config["genKey_" + g_lvs[i]]));
@@ -231,15 +238,15 @@ namespace fpnt {
       std::vector<std::string> idxs(g_lvs.size());
       for (size_t i = 0; i < g_lvs.size(); i++) {
 
-        size_t cnt = (g_lvs.size()-1) - i; // 최상위 수준에서 아래로 탐색해야 함
+        size_t cnt = (g_lvs.size()-1) - i; // iterate from the top (the most grouped) granularity to the bottom
         keys[cnt] = genKeyFns[cnt](in_pkts[idx], g_lvs[cnt], keys[cnt]);
 
-        in_pkts[idx][g_lvs[cnt] + "_key"] = keys[cnt]; // in_pkts는 idx와 cnt를 이용해 키를 넣기만 하면 됨
+        in_pkts[idx][g_lvs[cnt] + "_key"] = keys[cnt]; // inject the generated key to in_pkts
 
-        size_t cnt_idx = out_keys[g_lvs[cnt]].size();         // true일 경우 out의 idx
-        auto result = out_keys[g_lvs[cnt]].insert(keys[cnt]); // 키 삽입 시도
+        size_t cnt_idx = out_keys[g_lvs[cnt]].size();
+        auto result = out_keys[g_lvs[cnt]].insert(keys[cnt]); // inject the generated key to out_keys
 
-        if (result.second) { // 새 키 삽입인 경우 대응하는 레코드 객체를 생성
+        if (result.second) { // create a record object if a new key is injected to out_keys
             nlohmann::json out_obj;
             out_obj["__in_idx"] = idx;
             //std::cout << "__in_idx: " << idx << " g_lvs[cnt] " << g_lvs[cnt] << " " << keys[cnt] << " idx2keysize " << out_idx2key[g_lvs[cnt]].size() << " key2idxsize " << out_key2idx[g_lvs[cnt]].size() << std::endl;
@@ -252,21 +259,21 @@ namespace fpnt {
                 out[g_lvs[j]][keys[j]]["__" + g_lvs[cnt] + "_key"] = keys[cnt];
                 out[g_lvs[j]][keys[j]]["__" + g_lvs[cnt] + "_idx"] = cnt_idx; // =idxs[cnt]
 
-                if (j == cnt + 1) { // parent인 경우에 한해서
+                if (j == cnt + 1) { // in case of parent
                   out_child_keys[g_lvs[j]][keys[j]].push_back(keys[cnt]);
                 }
             }
-        } else {            // 기존에 있는 키라면, cnt_idx를 해당 out 레코드 객체를 가리킴
+        } else {            // if it is an existing key, cnt_idx points to the corresponding out record object
             cnt_idx = out_key2idx[g_lvs[cnt]][keys[cnt]];
         }
         idxs[cnt] = cnt_idx;
-        // keys[cnt]와 idxs[cnt]에 적절한 값이 삽입된 상황임
+        // new keys[cnt] idxs[cnt] have appropriate values
       }
     }
   }
 
   void Dispatcher::process(std::string granularity) {
-    // 현재 granularity를 제외하고 idx 초기화
+    // idx initialization except the current 'granularity'
     size_t ptr_g = -1;
     for (size_t i = 0; i < g_lvs.size(); i++) {
       idxs[i] = -1;
@@ -275,12 +282,14 @@ namespace fpnt {
 
     auto out_fields = out_maps[granularity].getFields();
 
-    // optimization for prep_fns_opts
+    // optimization for prep_fns_opts; more optimization is needed
     std::vector<std::vector<std::pair<std::string, std::string>>> vec_prep_fns_opts;
     for (auto& out_field : out_fields) {
       auto prep_fns_opts = out_maps[granularity].getPrepFns(out_field);
       vec_prep_fns_opts.push_back(prep_fns_opts);
     }
+
+    std::cout << "granuality: " << granularity << std::endl;
 
     for (size_t idx = 0; idx < out_idx2key[granularity].size(); idx++) { 
       idxs[ptr_g] = idx;
@@ -301,6 +310,9 @@ namespace fpnt {
         }
         field_idx++;
       }
+
+      if (idx % 1000000 == 0)
+        std::cout << "idx: " << idx << std::endl;
     }
 
     idxs[ptr_g] = -1;
@@ -310,8 +322,8 @@ namespace fpnt {
     Mapper* cur_map = nullptr;
     std::string postfix = granularity + ".";
 
-    if (granularity == "") {  // print all in one
-      // TODO: 다 합치려면 고려해야 할 것들이 좀 있음
+    if (granularity == "") {  
+      // TODO: print all in one
     } else {
       cur_map = &out_maps[granularity];
     }
@@ -342,7 +354,6 @@ namespace fpnt {
       return (*cnt_obj)["__"+to+"_idx"].get<size_t>();
     }
 
-    //chk_get_valid(from, to); 안 써도 됨
     if (g_lv_idx[from] > g_lv_idx[to]) {
       std::cerr << "please use get_idxs to access lower granuality records!" << std::endl;
       exit(1);
@@ -360,7 +371,6 @@ namespace fpnt {
       return (*cnt_obj)["__"+to+"_key"].get<std::string>();
     }
 
-    //chk_get_valid(from, to); 안 써도 됨
     if (g_lv_idx[from] > g_lv_idx[to]) {
       std::cerr << "please use get_idxs to access lower granuality records!" << std::endl;
       exit(1);
@@ -434,7 +444,7 @@ namespace fpnt {
         std::cerr << "chkOutputDir: Cannot Create Directory '" << pcap << "'" << std::endl;
         exit(1);
       }
-    } else if (std::filesystem::is_regular_file(pcap))  // 존재하며 파일임
+    } else if (std::filesystem::is_regular_file(pcap))  // exists and it is a file
     {
       bool remove_result = false;
       if (force_remove) {
@@ -451,7 +461,7 @@ namespace fpnt {
       }
 
       goto file_creation;
-    } else if (std::filesystem::is_directory(pcap))  // 디렉토리이고 empty
+    } else if (std::filesystem::is_directory(pcap))  // it is a directory and empty
     {
       // int i = 0;
       auto it = std::filesystem::begin(std::filesystem::directory_iterator(pcap));

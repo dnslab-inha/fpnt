@@ -12,10 +12,10 @@ namespace fpnt
             { std::cout << rang::style::reset; });
 
         std::string configPath = "./config.json";
-        std::string inputPcapPath = ""; // default: config 파일을 따를 것
-        std::string outputPath = ""; // default: config 파일을 따를 것
-        std::string outputType = ""; // default: config 파일을 따를 것
-        std::string pluginsPath = ""; // default: config 파일을 따를 것
+        std::string inputPcapPath = ""; // default: defined in the config file
+        std::string outputPath = "";    // default: defined in the config file
+        std::string outputType = "";    // default: defined in the config file
+        std::string pluginsPath = "";   // default: defined in the config file
 
         app.add_option("-c,--configpath", configPath, "Path of configuration JSON file");
         app.add_option("-i,--input_pcap", inputPcapPath, "Input pcap path");

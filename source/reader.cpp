@@ -176,8 +176,7 @@ namespace fpnt {
       // name can be empty so we need to fill name
       // now we need to find desc, type, ver
 
-      // name이 빈 경우를 채우고 나머지 속성에 대한 정보를 구축함
-      // 주의: dfref 특성 상 locality가 상당히 높음
+      // note: dfref has a substantial locality
 
       std::string first_char = std::to_string(field[0]);
 
@@ -214,15 +213,15 @@ namespace fpnt {
         std::ifstream i(path_entry);
         i.imbue(std::locale("en_US.UTF8"));  // we assume that wireshark display filter reference
                                              // will be offered as a UTF8 document.
-        // 가정: getline으로 <tr id=...을 읽어오고, 4096 바이트면 </tr>을 포함한 한 줄을 읽을 수
-        // 있다고 가정
+        // assumption by using getline, we read '<tr id=...'. We assume 4KB is sufficient to read a line until </tr>
+        // and emperically it is satisfied.
         std::size_t l, r;
         for (std::string line; std::getline(i, line);) {
           if ((l = line.find(leftstr)) != std::string::npos) {               // <tr id=... found
             if ((r = line.substr(l).find(rightstr)) != std::string::npos) {  // </tr> found
               found = true;
               found_string = line.substr(
-                  l, r);  // r이 line.substr(l)의 결과고, size_t이기 때문에... r-l이 아니라 r임
+                  l, r);  // r is the result of line.substr(l) and the fn call returns a size_t value, it should be r instead of r-1
               break;
             } else {
               std::cerr << "reader_csv_input_tshark: found <tr " << leftstr
@@ -243,7 +242,7 @@ namespace fpnt {
 
       std::string desc, type, ver;
 
-      // found_string은 </td><td>로 시작하는 세 개의 열을 가지고 있으며, 각 열을 추출
+      // found_string contains three columns starting </td><td>. we extract each column in this code snippet
       for (int i = 0; i < 3; i++) {
         std::size_t l = found_string.find("</td><td>");
         std::size_t r = found_string.substr(l + 5).find("</td>");
@@ -332,6 +331,10 @@ namespace fpnt {
         row_json["idx"] = no_pkts++; // Warning: internal state!
         in_pkts.push_back(row_json);
       }
+
+      if (no_pkts % 1000000 == 0) // counter for debugging
+        std::cout << "idx: " << no_pkts << std::endl;        
+      
     }
 
     return map;
@@ -344,7 +347,7 @@ namespace fpnt {
     command += " -Y \"" + config["tshark_displayfilter"].get<std::string>() + "\"";
     command += " -T fields";
 
-    // unordered_map이 빠르지만 여기서는 vector로 저장해둔 걸 써야 정렬된 순서대로 디버깅이 가능
+    // for debugging purpose, vector is used instead of unordered_map
     for (const auto& field : in_map.getFields()) command += " -e \"" + field + "\"";
 
     command += " -r " + std::string(filepath.c_str());
