@@ -43,6 +43,7 @@ namespace fpnt {
         csv_path(config["configcsv_path"].get<std::string>() + "/"),
         in_path(config["input_pcap_path"].get<std::string>()),
         out_path(config["output_path"].get<std::string>()),
+        sorted(PathComparator(config["sort_by_filesize"].get<bool>())),        
         in_reader(config["tshark_path"].get<std::string>(), csv_path + "input_tshark.csv", config["dfref_path"].get<std::string>()),
         loader{config["plugins_path"].get<std::string>()}
   {
@@ -493,8 +494,8 @@ namespace fpnt {
     // guarantees pcap is an empty directory
   }
 
-  const std::set<std::filesystem::path>& Dispatcher::set_sorted_pcap_paths(std::string path) {
-    std::set<std::filesystem::path> result;
+  const SortedPathSet& Dispatcher::set_sorted_pcap_paths(std::string path) {
+    this->sorted.clear();
 
     const std::filesystem::path input_pcap_path{path};
 
@@ -507,14 +508,36 @@ namespace fpnt {
       if (dir_entry.is_regular_file()) {
         std::string ext = dir_entry.path().extension();
         if (this->extensions.contains(ext)) {
-          result.insert(std::filesystem::relative(dir_entry.path(), input_pcap_path));
+          this->sorted.insert(std::filesystem::relative(dir_entry.path(), input_pcap_path));
         }
       }
     }
 
-    this->sorted = result;
-
     return this->sorted;
   }
+
+  void print_set_details(const SortedPathSet& sorted, const std::string& title) {
+    std::cout << "=== " << title
+              << " (Sort by File Size: " << (sorted.key_comp().sort_by_filesize ? "Yes" : "No")
+              << ") ===" << std::endl;
+    for (const auto& filepath : sorted) {
+      std::cout << filepath.generic_string();
+      if (sorted.key_comp().sort_by_filesize) {
+        try {
+          if (std::filesystem::is_regular_file(filepath)) {
+            std::cout << " [" << std::filesystem::file_size(filepath) << " bytes]";
+          } else {
+            std::cout << " [Not a file/Size N/A]";
+          }
+        } catch (...) {
+          std::cout << " [Error getting size]";
+        }
+      }
+      std::cout << std::endl;
+    }
+    std::cout << std::endl;
+  }
+
+
 
 }  // namespace fpnt
