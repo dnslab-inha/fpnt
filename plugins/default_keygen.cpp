@@ -79,32 +79,33 @@ const std::string genKey_flow_default(const nlohmann::json& pkt, std::string& gr
         cur_dst = cur_dst.substr(0, l);
     }
 
-    int keycomp = atoi(cur_srcport.c_str()) - atoi(cur_dstport.c_str());
-    if (keycomp == 0)
-    {
-        // In case of UDP, there are many cases that src port and dst port are the same
-        // in this case, we choose the decreasing order; that is a kind of lexicographical order is used.
-        // printf("implusible situation!\n");
-        // exit(1);
+    // flow key generation policy:
+    // We assume that smaller port number address is the server;
+    // if the port number address is the same (found in many UDP cases),
+    //    we assume that the smaller IP address is the server
+    // We use the client-first, server-second pair
 
+    int keycomp = atoi(cur_srcport.c_str()) - atoi(cur_dstport.c_str());
+    if (keycomp == 0) // the port number same case
+    {
         struct in_addr src_n, dst_n;
         if (inet_aton(cur_src.c_str(), &src_n) == 0 || inet_aton(cur_dst.c_str(), &dst_n) == 0)
         {
             std::cerr << "Invalid address" << std::endl;
             exit(EXIT_FAILURE);
         }
-        if (src_n.s_addr >= dst_n.s_addr)
-            cur_key = fmt::format("{0}:{1},{2}:{3}", cur_dst, cur_dstport, cur_src, cur_srcport);
-        else
-            cur_key = fmt::format("{2}:{3},{0}:{1}", cur_dst, cur_dstport, cur_src, cur_srcport);
+        if (src_n.s_addr >= dst_n.s_addr) // dst_n is the server
+            cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
+        else                              // dst_n is the client
+            cur_key = fmt::format("{2}:{3},{0}:{1}", cur_src, cur_srcport, cur_dst, cur_dstport);
     }
     else if (keycomp > 0)
-    { // srcport > dstport
-        cur_key = fmt::format("{0}:{1},{2}:{3}", cur_dst, cur_dstport, cur_src, cur_srcport);
+    { // srcport > dstport                   dstport is the server
+        cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
     }
     else
-    { // srcport < dstport
-        cur_key = fmt::format("{2}:{3},{0}:{1}", cur_dst, cur_dstport, cur_src, cur_srcport);
+    { // srcport < dstport                   dstport is the client
+        cur_key = fmt::format("{2}:{3},{0}:{1}", cur_src, cur_srcport, cur_dst, cur_dstport);
     }
     return cur_key;
 }

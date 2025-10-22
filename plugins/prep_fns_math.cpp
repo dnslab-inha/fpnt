@@ -10,19 +10,52 @@
 
 
 /**
- * @brief Child granularity's field sum, without skipping empty fields; assuming long long
+ * @brief Child granularity's field sum, skipping empty fields; assuming long long
  * 
  */
 extern "C" void P_childsum_ll(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
     // option contains out_pkt field name
+    // however, postfix '+' or '-' can be possible (assuming that field name does not allow postfix '+' or '-').
+    std::string fieldname = option;
+    bool check_dir, dir;
+
+    // check fieldname is empty
+    if (fieldname.empty()) {
+        exit(1);
+    }
+
+    // fieldname's last character
+    char lastChar = fieldname.back();
+
+    if (lastChar == '+') {
+        check_dir = true;        dir = true;    fieldname.pop_back();
+    } else if (lastChar == '-') {
+        check_dir = true;        dir = false;   fieldname.pop_back();
+    } else { // otherwise
+        check_dir = false;       dir = false;
+    }
+
     // idx contains flow idx
     long long result = 0;
     std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
     for(auto & child_key: fpnt::d->out_child_keys[granularity][key]) {
         nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
-        if (!cnt[option].is_null()) {
-            std::string val_str = cnt[option].get<std::string>();
-            result += atoll(val_str.c_str());
+        if (!cnt[fieldname].is_null()) {
+            std::string val_str = cnt[fieldname].get<std::string>();
+            long long temp = atoll(val_str.c_str());
+
+            if (check_dir) {// we should check direction
+                long long dir_value = atoll(cnt["__dir"].get<std::string>().c_str());
+                // different direction means no addition
+                if (dir && dir_value < 0) {
+                    temp = 0;
+                }
+                if(!dir && dir_value > 0) { 
+                    temp = 0;
+                }
+            }
+
+            result += temp;
         }
     }
     record[field] = std::to_string(result);
@@ -30,7 +63,7 @@ extern "C" void P_childsum_ll(std::string& option, nlohmann::json& record, const
 
 
 /**
- * @brief Child granularity's field sum, without skipping empty fields, assuming double
+ * @brief Child granularity's field sum, skipping empty fields, assuming double
  * 
  */
 extern "C" void P_childsum_d(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
@@ -162,6 +195,30 @@ extern "C" void P_childmin_d(std::string& option, nlohmann::json& record, const 
 }
 
 /**
+ * @brief Child granularity's field min, assuming double
+ * 
+ */
+extern "C" void P_childmaxdiff_d(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
+    // option contains out_pkt field name
+    // idx contains flow idx
+    double max = std::numeric_limits<double>::lowest();
+    double min = std::numeric_limits<double>::max();
+    std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
+    for(auto & child_key: fpnt::d->out_child_keys[granularity][key]) {
+        nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
+        if (!cnt[option].is_null()) {
+            std::string val_str = cnt[option].get<std::string>();
+            double cur_value = atof(val_str.c_str());
+            if (cur_value > max)
+                max = cur_value;
+            if (cur_value < min)
+                min = cur_value;
+        }
+    }
+    record[field] = std::to_string(max - min);
+}
+
+/**
  * @brief Child granularity's field max, assuming long long
  * 
  */
@@ -202,3 +259,4 @@ extern "C" void P_childmin_ll(std::string& option, nlohmann::json& record, const
     }
     record[field] = std::to_string(result);
 }
+

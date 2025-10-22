@@ -242,7 +242,7 @@ namespace fpnt {
         size_t cnt = (g_lvs.size()-1) - i; // iterate from the top (the most grouped) granularity to the bottom
         keys[cnt] = genKeyFns[cnt](in_pkts[idx], g_lvs[cnt], keys[cnt]);
 
-        in_pkts[idx][g_lvs[cnt] + "_key"] = keys[cnt]; // inject the generated key to in_pkts
+        in_pkts[idx]["__" + g_lvs[cnt] + "_key"] = keys[cnt]; // inject the generated key to in_pkts
 
         size_t cnt_idx = out_keys[g_lvs[cnt]].size();
         auto result = out_keys[g_lvs[cnt]].insert(keys[cnt]); // inject the generated key to out_keys
@@ -256,13 +256,18 @@ namespace fpnt {
             out_idx2key[g_lvs[cnt]].push_back(keys[cnt]);
             out_key2idx[g_lvs[cnt]][keys[cnt]] = cnt_idx;
 
-            for (size_t j = cnt; j < g_lvs.size(); j++) {
-                out[g_lvs[j]][keys[j]]["__" + g_lvs[cnt] + "_key"] = keys[cnt];
-                out[g_lvs[j]][keys[j]]["__" + g_lvs[cnt] + "_idx"] = cnt_idx; // =idxs[cnt]
+            // std::cout << "[DEBUG] ----- New Record in " << g_lvs[cnt] << " with key " << keys[cnt] << std::endl;
 
-                if (j == cnt + 1) { // in case of parent
-                  out_child_keys[g_lvs[j]][keys[j]].push_back(keys[cnt]);
-                }
+            for (size_t j = cnt; j < g_lvs.size(); j++) {
+              for (size_t k = j; k < g_lvs.size(); k++) {
+                out[g_lvs[j]][keys[j]]["__" + g_lvs[k] + "_key"] = keys[k];
+                // std::cout << "" << g_lvs[j] << "'s record " << keys[j] << "now has __" << g_lvs[k] << "_key field with value:" << keys[k] <<std::endl;
+              }
+              out[g_lvs[j]][keys[j]]["__" + g_lvs[cnt] + "_idx"] = cnt_idx; // =idxs[cnt]
+
+              if (j == cnt + 1) { // in case of parent
+                out_child_keys[g_lvs[j]][keys[j]].push_back(keys[cnt]);
+              }
             }
         } else {            // if it is an existing key, cnt_idx points to the corresponding out record object
             cnt_idx = out_key2idx[g_lvs[cnt]][keys[cnt]];
@@ -504,7 +509,7 @@ namespace fpnt {
       exit(1);
     }
 
-    for (auto const& dir_entry : std::filesystem::recursive_directory_iterator{input_pcap_path}) {
+    for (auto const& dir_entry : std::filesystem::recursive_directory_iterator{input_pcap_path, std::filesystem::directory_options::follow_directory_symlink}) {
       if (dir_entry.is_regular_file()) {
         std::string ext = dir_entry.path().extension();
         if (this->extensions.contains(ext)) {

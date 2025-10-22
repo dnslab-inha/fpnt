@@ -42,16 +42,66 @@ extern "C" void P_cpy(std::string& option, nlohmann::json& record, const std::st
 //    std::cout << fpnt::d->in_pkts[idx].dump() << std::endl;
 //    std::cout << fpnt::d->in_pkts[idx][option] << std::endl;
 //    std::cout << record.dump() << std::endl;
+    // if no option, the given fieldname is assumed to be the same as in the input field.
+    std::string fieldname = option;
+    if (fieldname == "")
+        fieldname = field;
+
     const size_t idx = record["__in_idx"].get<size_t>();
-    if(fpnt::d->in_pkts[idx][option].is_null())
+    if(fpnt::d->in_pkts[idx][fieldname].is_null())
         record[field] = "";
     else
-        record[field] = fpnt::d->in_pkts[idx][option].get<std::string>();
+        record[field] = fpnt::d->in_pkts[idx][fieldname].get<std::string>();
 }
 
 extern "C" void P_move(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
+    // if no option, the given fieldname is assumed to be the same as in the input field.
+    std::string fieldname = option;
+    if (fieldname == "")
+        fieldname = field;
     const size_t idx = record["__in_idx"];
-    record[field] = std::move(fpnt::d->in_pkts[idx][option]);
+    record[field] = std::move(fpnt::d->in_pkts[idx][fieldname]);
+}
+
+
+extern "C" void P_diff_d(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
+    // parsing
+    std::string start_key;
+    std::string end_key;
+    size_t colon_pos = option.find(':');
+
+    if (colon_pos == std::string::npos) {
+        throw std::invalid_argument("Option string must be in 'start_key:end_key' format.");
+    }
+
+    start_key = option.substr(0, colon_pos);
+    end_key = option.substr(colon_pos + 1);
+
+    // error check
+    if (record.find(start_key) == record.end() || record.find(end_key) == record.end()) {
+        throw std::runtime_error("One or both keys (" + start_key + ", " + end_key + ") not found in record map.");
+    }
+
+    const std::string start_str = record[start_key].get<std::string>();
+    const std::string end_str = record[end_key].get<std::string>();
+
+    // 3. 문자열을 double로 변환
+    double start_time;
+    double end_time;
+
+    try {
+        start_time = std::stod(start_str);
+        end_time = std::stod(end_str);
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Failed to convert one or both values to double: " + std::string(e.what()));
+    }
+
+    // 4. 시간차 계산: end_time - start_time
+    double difference = end_time - start_time;
+
+    // 5. 결과를 문자열로 변환하여 record[field]에 저장
+    record[field] = std::to_string(difference);
+
 }
 
 
@@ -135,6 +185,42 @@ extern "C" void P_iat(std::string& option, nlohmann::json& record, const std::st
     } else {
         record[field] = "";
     }
+}
+
+/**
+ * @brief Interarrival Time Sequence for Flowset defined in CBSeq
+ * 
+ */
+extern "C" void P_iat_cbseq(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
+    // option contains flow's start time field name
+    // idx contains flow idx
+    std::string result = "";
+    std::vector<double> start_times;
+
+    for(auto& flow_key: fpnt::get_keys(key, granularity,"flow")) {
+        nlohmann::json& cnt = fpnt::d->out["flow"][flow_key];
+        std::cout << "flowkey: " << flow_key << std::endl;
+        std::cout << "option: " << option << std::endl;
+        std::cout << "field: " << cnt[option].get<std::string>() << std::endl;
+        if (cnt[option].is_null()) {
+            std::cerr << "P_iat_cbseq: Empty arrival time value!" << std::endl;
+            exit(1);
+        }
+
+        double cnt_start_time = stod(cnt[option].get<std::string>());
+        start_times.push_back(cnt_start_time);
+
+    }
+
+    std::vector<double> iats;
+    iats.push_back(0);
+    if (start_times.size() > 1) {
+        for (size_t i = 1; i < start_times.size(); ++i) {
+            iats.push_back(start_times[i] - start_times[i - 1]);
+        }
+    }
+
+    record[field] = vectorToString(iats);
 }
 
 /**
@@ -254,4 +340,62 @@ extern "C" void P_saveFlowsetKey(std::string& option, nlohmann::json& record, co
  */
 extern "C" void P_savePktKey(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
     record[field] = record["__pkt_key"];
+}
+
+/** P_saveDir: save the corresponding dir, of the current record, to the field value
+ * Please note this function does not check the availability of such key, but due to the internal design of fpnt, this key must be available.
+ * 
+ */
+extern "C" void P_saveDir(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
+    record[field] = record["__dir"];
+}
+
+/** P_dir: calculate packet direction (either +1 or -1) based on genKey_flow_default (a stateless flow key generation).
+ *  That is, the first IP address of the flow key is the smaller one, not the client's IP address.
+ *  Therefore, When you want to obtain "the TCP style" packet direction sequence, you need to check 
+ *  whether the first packet's direction is +1 or -1. If it is -1, the sequence values should be multiplied by -1.
+ */
+extern "C" void P_dir(std::string& option, nlohmann::json& record, const std::string& granularity, const std::string& key, const std::string &field) {
+    const size_t idx = record["__in_idx"];
+    //std::cout << record.dump() << std::endl;
+    std::string flow_key = record["__flow_key"].get<std::string>();
+
+    if (flow_key.substr(flow_key.length()-5, 5) == "_IPv6") {
+        record["__dir"] = "0"; // unexpected value
+        return;
+    }
+
+    std::string ipsrc = fpnt::d->in_pkts[idx]["ip.src"];
+    if (ipsrc == "") {
+        record["__dir"] = "0"; // unexpected value
+        return;
+    }
+
+    size_t ipsrc_first = flow_key.find(ipsrc);
+    size_t ipsrc_last = flow_key.rfind(ipsrc);
+    if( ipsrc_first == ipsrc_last ) { // First occurence and last occurence are the same.
+                                                         // it implies that ipsrc != ipdst
+        if(ipsrc_first == 0) { // this packet's ip.src is firstly located
+            record["__dir"] = "+1";
+        } else {                 // this packet's ip.src is secondly located
+            record["__dir"] = "-1";
+        }
+    } else { // 'First occurence and last occurence are different' means that this packet is exchanged within the same host.
+        std::string dstport = fpnt::d->in_pkts[idx]["tcp.dstport"];
+        if (fpnt::d->in_pkts[idx]["udp.dstport"] != "") {
+            dstport = fpnt::d->in_pkts[idx]["udp.dstport"];
+        }
+
+        if (dstport == "") { // both tcp and udp has empty dstport
+            record["__dir"] = "0"; // unexpected value
+            return;
+        }
+
+        if (flow_key.length() == flow_key.find(dstport) + dstport.length() ) {
+            // dstport is located in the second
+            record["__dir"] = "+1";
+        } else {
+            record["__dir"] = "-1";
+        }        
+    }
 }
