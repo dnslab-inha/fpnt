@@ -199,9 +199,9 @@ extern "C" void P_iat_cbseq(std::string& option, nlohmann::json& record, const s
 
     for(auto& flow_key: fpnt::get_keys(key, granularity,"flow")) {
         nlohmann::json& cnt = fpnt::d->out["flow"][flow_key];
-        std::cout << "flowkey: " << flow_key << std::endl;
-        std::cout << "option: " << option << std::endl;
-        std::cout << "field: " << cnt[option].get<std::string>() << std::endl;
+        // std::cout << "flowkey: " << flow_key << std::endl;
+        // std::cout << "option: " << option << std::endl;
+        // std::cout << "field: " << cnt[option].get<std::string>() << std::endl;
         if (cnt[option].is_null()) {
             std::cerr << "P_iat_cbseq: Empty arrival time value!" << std::endl;
             exit(1);

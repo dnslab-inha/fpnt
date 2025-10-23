@@ -27,7 +27,7 @@ namespace fpnt {
     bool sort_by_filesize;
 
     // Constructor to set the sorting preference at creation.
-    PathComparator(bool sort_by_size) : sort_by_filesize(sort_by_size) {}
+    PathComparator(bool sort_by_size = false) : sort_by_filesize(sort_by_size) {}
 
     // The comparison operator required by std::set.
     // Must return true if 'a' should come before 'b' in the sorted order.
@@ -75,7 +75,8 @@ namespace fpnt {
     std::string in_path;
     std::string out_path;
     //std::set<std::filesystem::path> sorted;
-    SortedPathSet sorted;
+    SortedPathSet sorted; // key; absolute path
+    std::map<std::filesystem::path, std::filesystem::path> relative_path; //output relative path from key
 
     TSharkCSVReader in_reader;
     // CSVReader reader_outfmt_pkt;
@@ -84,7 +85,8 @@ namespace fpnt {
     std::vector<CSVReader> out_readers;
     Loader loader;
 
-    std::filesystem::path cur_filepath;
+    std::filesystem::path cur_abs_path;
+    
 
     // std::pair<size_t, size_t> Dispatcher::chk_get_valid(std::string& from, std::string& to);
 
@@ -137,10 +139,10 @@ namespace fpnt {
 
     const SortedPathSet& set_sorted_pcap_paths(std::string path);
     const SortedPathSet& get_sorted_pcap_paths() { return this->sorted; };
-    const std::filesystem::path get_in_filepath() { return in_path / cur_filepath; };
+    const std::filesystem::path get_in_filepath() { return cur_abs_path; };
     const std::filesystem::path get_out_filepath(std::string postfix = "") {
       const std::string output_type = config["output_type"].get<std::string>();
-      auto result = out_path / cur_filepath;
+      auto result = out_path / relative_path[cur_abs_path];
       result.replace_extension(postfix + output_type);
       return result;
     };
@@ -154,7 +156,7 @@ namespace fpnt {
 
     void dispatch();
 
-    void process_main(const std::filesystem::path filepath);
+    void process_main(const std::filesystem::path abs_path);
     void process_base();
     void process(std::string granularity);
     // void process_pkt();
@@ -164,6 +166,8 @@ namespace fpnt {
     void writer(std::string granularity = "");
 
     void print_buf_pkt(std::string out_pkt_filepath);
+
+    void print_path_details(const SortedPathSet& sorted, const std::string& title);
   };
 
 };  // namespace fpnt
