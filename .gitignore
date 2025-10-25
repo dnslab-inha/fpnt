@@ -1,8 +1,7 @@
-/build*
 /.vscode
+/build*
 /cpm_modules
 .DS_Store
+/input*
 /out*
 /dfref*
-/in_pcap*
-/backup*
