@@ -3,7 +3,6 @@
 
 #include <dlfcn.h>
 #include <fpnt/mapper.h>
-#include <link.h>  // link_map
 
 #include <iostream>
 #include <nlohmann/json.hpp>

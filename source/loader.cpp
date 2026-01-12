@@ -1,13 +1,14 @@
 #include <fpnt/loader.h>
 
 #if defined(__APPLE__)
-#include <pstream.h>
-#include <sstream>
+#  include <pstream.h>
+
+#  include <sstream>
 #elif defined(__linux__)
-#include <elf.h>  // ELF64_Sym
-#include <link.h>
+#  include <elf.h>   // ELF64_Sym
+#  include <link.h>  // link_map
 #else
-#error "Unsupported platform for dynamic symbol listing in loader.cpp"
+#  error "Unsupported platform for dynamic symbol listing in loader.cpp"
 #endif
 
 #include <string>
