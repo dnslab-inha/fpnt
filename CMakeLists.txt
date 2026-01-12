@@ -69,6 +69,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_compile_options(${PROJECT_NAME} PUBLIC "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/permissive->")
 
 # Link dependencies
+link_libraries(--coverage)
 target_link_libraries(${PROJECT_NAME} PUBLIC fmt::fmt)
 target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json::nlohmann_json)
 target_link_libraries(${PROJECT_NAME} PUBLIC CLI11::CLI11)
