@@ -25,7 +25,7 @@ for link in links:
         file_response = requests.get(file_url)
         
         # obtain the filename and save the file
-        file_name = os.path.join(save_dir, href)
+        file_name = os.path.join(save_dir, href.lstrip('/'))
         os.makedirs(os.path.dirname(file_name), exist_ok=True)
         with open(file_name, 'wb') as file:
             file.write(file_response.content)
