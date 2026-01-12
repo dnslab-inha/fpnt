@@ -74,7 +74,9 @@ target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json::nlohmann_json)
 target_link_libraries(${PROJECT_NAME} PUBLIC CLI11::CLI11)
 target_link_libraries(${PROJECT_NAME} PUBLIC rang)
 target_link_libraries(${PROJECT_NAME} PUBLIC csv)
-target_link_libraries(${PROJECT_NAME} PRIVATE gcov)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  target_link_libraries(${PROJECT_NAME} PRIVATE gcov)
+endif()
 target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PStreams_SOURCE_DIR}>)
 target_include_directories(
   ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>

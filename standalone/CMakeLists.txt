@@ -9,7 +9,7 @@ set_target_properties(
   fpnt_bin PROPERTIES CXX_STANDARD 20 OUTPUT_NAME "fpnt" INSTALL_RPATH "$ORIGIN"
 )
 
-target_link_libraries(fpnt_bin PRIVATE FPNT fmt::fmt csv nlohmann_json::nlohmann_json gcov)
+target_link_libraries(fpnt_bin PRIVATE FPNT fmt::fmt csv nlohmann_json::nlohmann_json)
 
 install(TARGETS fpnt_bin RUNTIME DESTINATION .)
 
