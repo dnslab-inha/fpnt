@@ -39,7 +39,7 @@ namespace fpnt {
   }
 
   std::vector<size_t> get_idxs(std::string key, std::string from,
-                                           std::string to) {  // v0.3
+                               std::string to) {  // v0.3
     if (d->g_lv_idx[from] <= d->g_lv_idx[to]) {
       std::cerr << "please use get_idx to access higher granuality records!" << std::endl;
       exit(1);
@@ -61,7 +61,7 @@ namespace fpnt {
   }
 
   std::vector<std::string> get_keys(std::string key, std::string from,
-                                                std::string to) {  // v0.3
+                                    std::string to) {  // v0.3
     if (d->g_lv_idx[from] <= d->g_lv_idx[to]) {
       std::cerr << "please use get_idx to access higher granuality records!" << std::endl;
       exit(1);

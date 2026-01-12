@@ -42,8 +42,7 @@ namespace fpnt {
       if (ELF64_ST_TYPE(symtab[k].st_info) == STT_FUNC) {
         // str is name of each symbol
         std::string str = &strtab[sym->st_name];
-        if (str.substr(0,2) == "P_" || str.substr(0,7) == "genKey_")
-          map_fns[str] = NULL;
+        if (str.substr(0, 2) == "P_" || str.substr(0, 7) == "genKey_") map_fns[str] = NULL;
       } else if (ELF64_ST_TYPE(symtab[k].st_info) == STT_OBJECT) {
         std::string str = &strtab[sym->st_name];
         if (str == "d") {
@@ -58,9 +57,9 @@ namespace fpnt {
   }
 
   bool Loader::validate(const std::string &str_fn) {
-    if (str_fn.substr(0,2) != "P_") {
+    if (str_fn.substr(0, 2) != "P_") {
       return map_fns.contains(str_fn);
-    } else if (str_fn.substr(0,7) != "genKey_") {
+    } else if (str_fn.substr(0, 7) != "genKey_") {
       return map_genkeyfns.contains(str_fn);
     } else {
       exit(1);
@@ -77,14 +76,14 @@ namespace fpnt {
     return symptr;
   }
 
-  fnptr_PrepFn Loader::getPrepFn(std::string& str_fn) {
+  fnptr_PrepFn Loader::getPrepFn(std::string &str_fn) {
     fnptr_PrepFn fnptr = NULL;
-    if (map_fns.contains(str_fn) && map_fns[str_fn] != NULL)
-        return map_fns[str_fn];
+    if (map_fns.contains(str_fn) && map_fns[str_fn] != NULL) return map_fns[str_fn];
 
     // if the fnptr is not available
-    if (str_fn.substr(0,2) != "P_") {
-      std::cerr << "getPrepFn: the given string does not satisfy the prefix rule 'P_'!" << std::endl;
+    if (str_fn.substr(0, 2) != "P_") {
+      std::cerr << "getPrepFn: the given string does not satisfy the prefix rule 'P_'!"
+                << std::endl;
       exit(1);
     }
 
@@ -95,19 +94,20 @@ namespace fpnt {
       exit(1);
     }
 
-    fnptr = (fnptr_PrepFn) new_fnptr;
+    fnptr = (fnptr_PrepFn)new_fnptr;
     map_fns[str_fn] = fnptr;
 
     return fnptr;
   }
 
-  fnptr_genKeyFn Loader::getGenKeyFn(const std::string& str_fn) {
+  fnptr_genKeyFn Loader::getGenKeyFn(const std::string &str_fn) {
     fnptr_genKeyFn fnptr = NULL;
     if (map_genkeyfns.contains(str_fn) && map_genkeyfns[str_fn] != NULL)
-        return map_genkeyfns[str_fn];
-    
-    if (str_fn.substr(0,7) != "genKey_") {
-      std::cerr << "getPrepFn: the given string does not satisfy the prefix rule 'genKey_'!" << std::endl;
+      return map_genkeyfns[str_fn];
+
+    if (str_fn.substr(0, 7) != "genKey_") {
+      std::cerr << "getPrepFn: the given string does not satisfy the prefix rule 'genKey_'!"
+                << std::endl;
     }
 
     char *error;
@@ -117,7 +117,7 @@ namespace fpnt {
       exit(1);
     }
 
-    fnptr = (fnptr_genKeyFn) new_fnptr;
+    fnptr = (fnptr_genKeyFn)new_fnptr;
     map_genkeyfns[str_fn] = fnptr;
 
     return fnptr;

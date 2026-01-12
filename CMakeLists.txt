@@ -11,23 +11,26 @@ project(
 
 # If the install path is not specified, set it to fpnt_release in the user's home directory
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  set(CMAKE_INSTALL_PREFIX "$ENV{HOME}/fpnt_release" CACHE PATH "Default install prefix" FORCE)
+  set(CMAKE_INSTALL_PREFIX
+      "$ENV{HOME}/fpnt_release"
+      CACHE PATH "Default install prefix" FORCE
+  )
 endif()
 
 # https://stackoverflow.com/questions/58783805/define-debug-and-release-symbols-in-visual-studio-code
-if (CMAKE_BUILD_TYPE STREQUAL "")
-    # Build type is not set eg. command was "cmake .."
-    message(STATUS "  Diag: Build type was unspecified, set to Release")
-    set(CMAKE_BUILD_TYPE Release)
-else ()
-    message(STATUS "  Diag: Build type specified as '${CMAKE_BUILD_TYPE}'")
-endif ()
+if(CMAKE_BUILD_TYPE STREQUAL "")
+  # Build type is not set eg. command was "cmake .."
+  message(STATUS "  Diag: Build type was unspecified, set to Release")
+  set(CMAKE_BUILD_TYPE Release)
+else()
+  message(STATUS "  Diag: Build type specified as '${CMAKE_BUILD_TYPE}'")
+endif()
 
-if (${CMAKE_BUILD_TYPE} STREQUAL Debug)
-    set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "_DEBUG")
-else ()
-    set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
-endif ()
+if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
+  set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "_DEBUG")
+else()
+  set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
+endif()
 
 # ---- Include guards ----
 
@@ -73,31 +76,29 @@ target_link_libraries(${PROJECT_NAME} PUBLIC rang)
 target_link_libraries(${PROJECT_NAME} PUBLIC csv)
 target_link_libraries(${PROJECT_NAME} PRIVATE gcov)
 target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PStreams_SOURCE_DIR}>)
-target_include_directories(${PROJECT_NAME} PUBLIC 
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
+target_include_directories(
+  ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                         $<INSTALL_INTERFACE:include>
 )
 
-
 # ---- Create an installable target ----
-# this allows users to install and find the library via `find_package()`.
-# the location where the project's version header will be placed should match the project's regular
-# header paths
+# this allows users to install and find the library via `find_package()`. the location where the
+# project's version header will be placed should match the project's regular header paths
 string(TOLOWER ${PROJECT_NAME}/version.h VERSION_HEADER_LOCATION)
 
 # Packaging Configuration via packageProject
 include(GNUInstallDirs)
 packageProject(
-    NAME ${PROJECT_NAME}
-    VERSION ${PROJECT_VERSION}
-    BINARY_DIR ${PROJECT_BINARY_DIR}
-    INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
-    INCLUDE_DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    COMPATIBILITY SameMajorVersion
-    DEPENDENCIES fmt
-    DEPENDENCIES nlohmann_json
-    DEPENDENCIES CLI11
-    DEPENDENCIES csv
+  NAME ${PROJECT_NAME}
+  VERSION ${PROJECT_VERSION}
+  BINARY_DIR ${PROJECT_BINARY_DIR}
+  INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
+  INCLUDE_DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  COMPATIBILITY SameMajorVersion
+  DEPENDENCIES fmt
+  DEPENDENCIES nlohmann_json
+  DEPENDENCIES CLI11
+  DEPENDENCIES csv
 )
 
 # Copy config.json to the install root directory

@@ -18,7 +18,7 @@ CPMAddPackage("gh:TheLartians/Format.cmake@1.7.3")
 
 if(TEST_INSTALLED_VERSION)
   find_package(FPNT REQUIRED)
-elseif(NOT TARGET FPNT)
+else()
   CPMAddPackage(NAME FPNT SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
 endif()
 
@@ -26,8 +26,7 @@ endif()
 
 file(GLOB sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp)
 add_executable(${PROJECT_NAME} ${sources})
-#target_link_libraries(${PROJECT_NAME} doctest::doctest FPNT)
-target_link_libraries(${PROJECT_NAME} doctest::doctest)
+target_link_libraries(${PROJECT_NAME} doctest::doctest FPNT)
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 
 # enable compiler warnings
@@ -59,4 +58,3 @@ if(ENABLE_TEST_COVERAGE)
   target_compile_options(FPNT PUBLIC -O0 -g -fprofile-arcs -ftest-coverage)
   target_link_options(FPNT PUBLIC -fprofile-arcs -ftest-coverage)
 endif()
-

@@ -1,15 +1,12 @@
 #include <fpnt/dispatcher.h>
-#include <sys/wait.h>
-#include <unistd.h>
-
-#include <set>
-#include <thread>
-
-#include <csignal>
-#include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <unistd.h>
+
 #include <algorithm>
+#include <csignal>
+#include <set>
+#include <thread>
 
 namespace fpnt {
   unsigned int max_concurrency = std::thread::hardware_concurrency();
@@ -24,15 +21,14 @@ namespace fpnt {
   }
 
   void signal_handler(int signum) {
-    //std::cout << "Signal Handler multiprocessing" << multiprocessing << std::endl;
+    // std::cout << "Signal Handler multiprocessing" << multiprocessing << std::endl;
     if (multiprocessing) {
-      
       for (pid_t pid : child_processes) {
-          std::cout << "Killing " << pid << "..." << std::endl;
-          kill(pid, SIGTERM);
-          waitpid(pid, nullptr, 0); // Wait for the child process to terminate
+        std::cout << "Killing " << pid << "..." << std::endl;
+        kill(pid, SIGTERM);
+        waitpid(pid, nullptr, 0);  // Wait for the child process to terminate
       }
-      
+
       exit(signum);
     }
   }
@@ -44,9 +40,9 @@ namespace fpnt {
         in_path(config["input_pcap_path"].get<std::string>()),
         out_path(config["output_path"].get<std::string>()),
         sorted(PathComparator(config["sort_by_filesize"].get<bool>())),
-        in_reader(config["tshark_path"].get<std::string>(), csv_path + "input_tshark.csv", config["dfref_path"].get<std::string>()),
-        loader{config["plugins_path"].get<std::string>()}
-  {
+        in_reader(config["tshark_path"].get<std::string>(), csv_path + "input_tshark.csv",
+                  config["dfref_path"].get<std::string>()),
+        loader{config["plugins_path"].get<std::string>()} {
     file_idx = -1;
     in_pkt_idx = -1;
     in_map = TSharkMapper(in_reader.read());
@@ -133,7 +129,6 @@ namespace fpnt {
   }
 
   void Dispatcher::dispatch() {
-
     try {
       multiprocessing = config.at("multiprocessing").get<bool>();
     } catch (nlohmann::json::basic_json::out_of_range& e) {
@@ -141,7 +136,7 @@ namespace fpnt {
     }
 
     if (multiprocessing) {
-      //std::cout << "signal registered!" << std::endl;
+      // std::cout << "signal registered!" << std::endl;
       signal(SIGINT, signal_handler);
     }
 
@@ -154,7 +149,6 @@ namespace fpnt {
     } catch (nlohmann::json::basic_json::out_of_range& e) {
       // Do Nothing
     }
-
 
     for (auto abs_filepath : sorted) {
       if (multiprocessing == true) {
@@ -188,21 +182,22 @@ namespace fpnt {
         process_main(abs_filepath);
     }
 
-    //std::cout << "parent multiprocessing no_processes " << multiprocessing << " " << child_processes.size() << std::endl;
+    // std::cout << "parent multiprocessing no_processes " << multiprocessing << " " <<
+    // child_processes.size() << std::endl;
 
     std::vector<pid_t> to_be_erased;
-    for(auto pid : child_processes) {
+    for (auto pid : child_processes) {
       int wc = waitpid(pid, nullptr, 0);
       if (wc == -1) {
         std::cerr << "dispatch: wait() has unusual errno: " << strerror(errno) << std::endl;
         exit(1);
       } else {
-        //std::cout << "pid " << wc << "is terminated." << std::endl;
+        // std::cout << "pid " << wc << "is terminated." << std::endl;
         to_be_erased.push_back(pid);
         // std::cout << "Counter: " << no_processes << std::endl;
       }
     }
-    for(auto pid: to_be_erased) {
+    for (auto pid : to_be_erased) {
       child_processes.erase(pid);
     }
   }
@@ -237,43 +232,49 @@ namespace fpnt {
     // so that after generating keys out pkts are inserted immediately
     for (size_t idx = 0; idx < in_pkts.size(); idx++) {  // for each in_pkt
       in_pkt_idx = idx;
-      
+
       std::vector<std::string> keys(g_lvs.size());
       std::vector<std::string> idxs(g_lvs.size());
       for (size_t i = 0; i < g_lvs.size(); i++) {
-
-        size_t cnt = (g_lvs.size()-1) - i; // iterate from the top (the most grouped) granularity to the bottom
+        size_t cnt = (g_lvs.size() - 1)
+                     - i;  // iterate from the top (the most grouped) granularity to the bottom
         keys[cnt] = genKeyFns[cnt](in_pkts[idx], g_lvs[cnt], keys[cnt]);
 
-        in_pkts[idx]["__" + g_lvs[cnt] + "_key"] = keys[cnt]; // inject the generated key to in_pkts
+        in_pkts[idx]["__" + g_lvs[cnt] + "_key"]
+            = keys[cnt];  // inject the generated key to in_pkts
 
         size_t cnt_idx = out_keys[g_lvs[cnt]].size();
-        auto result = out_keys[g_lvs[cnt]].insert(keys[cnt]); // inject the generated key to out_keys
+        auto result
+            = out_keys[g_lvs[cnt]].insert(keys[cnt]);  // inject the generated key to out_keys
 
-        if (result.second) { // create a record object if a new key is injected to out_keys
-            nlohmann::json out_obj;
-            out_obj["__in_idx"] = idx;
-            //std::cout << "__in_idx: " << idx << " g_lvs[cnt] " << g_lvs[cnt] << " " << keys[cnt] << " idx2keysize " << out_idx2key[g_lvs[cnt]].size() << " key2idxsize " << out_key2idx[g_lvs[cnt]].size() << std::endl;
-            out[g_lvs[cnt]][keys[cnt]] = out_obj;
-            //out_idx2key[g_lvs[cnt]][cnt_idx] = keys[cnt];
-            out_idx2key[g_lvs[cnt]].push_back(keys[cnt]);
-            out_key2idx[g_lvs[cnt]][keys[cnt]] = cnt_idx;
+        if (result.second) {  // create a record object if a new key is injected to out_keys
+          nlohmann::json out_obj;
+          out_obj["__in_idx"] = idx;
+          // std::cout << "__in_idx: " << idx << " g_lvs[cnt] " << g_lvs[cnt] << " " << keys[cnt] <<
+          // " idx2keysize " << out_idx2key[g_lvs[cnt]].size() << " key2idxsize " <<
+          // out_key2idx[g_lvs[cnt]].size() << std::endl;
+          out[g_lvs[cnt]][keys[cnt]] = out_obj;
+          // out_idx2key[g_lvs[cnt]][cnt_idx] = keys[cnt];
+          out_idx2key[g_lvs[cnt]].push_back(keys[cnt]);
+          out_key2idx[g_lvs[cnt]][keys[cnt]] = cnt_idx;
 
-            // std::cout << "[DEBUG] ----- New Record in " << g_lvs[cnt] << " with key " << keys[cnt] << std::endl;
+          // std::cout << "[DEBUG] ----- New Record in " << g_lvs[cnt] << " with key " << keys[cnt]
+          // << std::endl;
 
-            for (size_t j = cnt; j < g_lvs.size(); j++) {
-              for (size_t k = j; k < g_lvs.size(); k++) {
-                out[g_lvs[j]][keys[j]]["__" + g_lvs[k] + "_key"] = keys[k];
-                // std::cout << "" << g_lvs[j] << "'s record " << keys[j] << "now has __" << g_lvs[k] << "_key field with value:" << keys[k] <<std::endl;
-              }
-              out[g_lvs[j]][keys[j]]["__" + g_lvs[cnt] + "_idx"] = cnt_idx; // =idxs[cnt]
-
-              if (j == cnt + 1) { // in case of parent
-                out_child_keys[g_lvs[j]][keys[j]].push_back(keys[cnt]);
-              }
+          for (size_t j = cnt; j < g_lvs.size(); j++) {
+            for (size_t k = j; k < g_lvs.size(); k++) {
+              out[g_lvs[j]][keys[j]]["__" + g_lvs[k] + "_key"] = keys[k];
+              // std::cout << "" << g_lvs[j] << "'s record " << keys[j] << "now has __" << g_lvs[k]
+              // << "_key field with value:" << keys[k] <<std::endl;
             }
-        } else {            // if it is an existing key, cnt_idx points to the corresponding out record object
-            cnt_idx = out_key2idx[g_lvs[cnt]][keys[cnt]];
+            out[g_lvs[j]][keys[j]]["__" + g_lvs[cnt] + "_idx"] = cnt_idx;  // =idxs[cnt]
+
+            if (j == cnt + 1) {  // in case of parent
+              out_child_keys[g_lvs[j]][keys[j]].push_back(keys[cnt]);
+            }
+          }
+        } else {  // if it is an existing key, cnt_idx points to the corresponding out record object
+          cnt_idx = out_key2idx[g_lvs[cnt]][keys[cnt]];
         }
         idxs[cnt] = cnt_idx;
         // new keys[cnt] idxs[cnt] have appropriate values
@@ -300,11 +301,11 @@ namespace fpnt {
 
     std::cout << "granuality: " << granularity << std::endl;
 
-    for (size_t idx = 0; idx < out_idx2key[granularity].size(); idx++) { 
+    for (size_t idx = 0; idx < out_idx2key[granularity].size(); idx++) {
       idxs[ptr_g] = idx;
 
       const std::string& cnt_out_key = out_idx2key[granularity][idx];
-      //const size_t cnt_out_idx = out_key2idx[granularity][cnt_out_key];
+      // const size_t cnt_out_idx = out_key2idx[granularity][cnt_out_key];
       nlohmann::json* record_ptr = &out[granularity][cnt_out_key];
 
       size_t field_idx = 0;
@@ -320,8 +321,7 @@ namespace fpnt {
         field_idx++;
       }
 
-      if (idx % 1000000 == 0)
-        std::cout << "idx: " << idx << std::endl;
+      if (idx % 1000000 == 0) std::cout << "idx: " << idx << std::endl;
     }
 
     idxs[ptr_g] = -1;
@@ -331,7 +331,7 @@ namespace fpnt {
     Mapper* cur_map = nullptr;
     std::string postfix = granularity + ".";
 
-    if (granularity == "") {  
+    if (granularity == "") {
       // TODO: print all in one
     } else {
       cur_map = &out_maps[granularity];
@@ -358,9 +358,9 @@ namespace fpnt {
   }
 
   size_t Dispatcher::get_idx(std::string key, std::string from, std::string to) {  // v0.3
-    nlohmann::json *cnt_obj = &out[from][key];
-    if (to == "eq" || from == to) {      
-      return (*cnt_obj)["__"+to+"_idx"].get<size_t>();
+    nlohmann::json* cnt_obj = &out[from][key];
+    if (to == "eq" || from == to) {
+      return (*cnt_obj)["__" + to + "_idx"].get<size_t>();
     }
 
     if (g_lv_idx[from] > g_lv_idx[to]) {
@@ -369,15 +369,15 @@ namespace fpnt {
     }
 
     // now g_lv_idx[from] < g_lv_idx[to]
-    return (*cnt_obj)["__"+to+"_idx"].get<size_t>();
+    return (*cnt_obj)["__" + to + "_idx"].get<size_t>();
   }
 
   /*
    */
   std::string Dispatcher::get_key(std::string key, std::string from, std::string to) {  // v0.3
-    nlohmann::json *cnt_obj = &out[from][key];
-    if (to == "eq" || from == to) {      
-      return (*cnt_obj)["__"+to+"_key"].get<std::string>();
+    nlohmann::json* cnt_obj = &out[from][key];
+    if (to == "eq" || from == to) {
+      return (*cnt_obj)["__" + to + "_key"].get<std::string>();
     }
 
     if (g_lv_idx[from] > g_lv_idx[to]) {
@@ -386,7 +386,7 @@ namespace fpnt {
     }
 
     // now g_lv_idx[from] < g_lv_idx[to]
-    return (*cnt_obj)["__"+to+"_key"].get<std::string>();
+    return (*cnt_obj)["__" + to + "_key"].get<std::string>();
   }
 
   std::vector<size_t> Dispatcher::get_idxs(std::string key, std::string from,
@@ -399,12 +399,12 @@ namespace fpnt {
     // g_lv_idx[from] > g_lv_idx[to]
     std::vector<size_t> result;
     std::vector<std::string> cnt_child_keys = out_child_keys[from][key];
-    for (auto &x: cnt_child_keys) {
+    for (auto& x : cnt_child_keys) {
       if (g_lv_idx[from] == g_lv_idx[to] + 1) {
         result.push_back(out_key2idx[to][x]);
       } else {
         std::vector<std::size_t> child_result = get_idxs(x, g_lvs[g_lv_idx[from] - 1], to);
-        result.insert( result.end(), child_result.begin(), child_result.end());
+        result.insert(result.end(), child_result.begin(), child_result.end());
       }
     }
 
@@ -421,12 +421,12 @@ namespace fpnt {
     // g_lv_idx[from] > g_lv_idx[to]
     std::vector<std::string> result;
     std::vector<std::string> cnt_child_keys = out_child_keys[from][key];
-    for (auto &x: cnt_child_keys) {
+    for (auto& x : cnt_child_keys) {
       if (g_lv_idx[from] == g_lv_idx[to] + 1) {
         result.push_back(x);
       } else {
         std::vector<std::string> child_result = get_keys(x, g_lvs[g_lv_idx[from] - 1], to);
-        result.insert( result.end(), child_result.begin(), child_result.end());
+        result.insert(result.end(), child_result.begin(), child_result.end());
       }
     }
     return result;
@@ -513,64 +513,66 @@ namespace fpnt {
     }
 
     // A helper function for recursive exploration
-    std::function<void(const std::filesystem::path&, std::string)> explore_directory = 
-        [&](const std::filesystem::path& current_path, std::string preamble) {
-        
-        // current_path is the starting point
-        for (const auto& entry : std::filesystem::directory_iterator{current_path, std::filesystem::directory_options::follow_directory_symlink}) {
-            const std::filesystem::path entry_path = entry.path();
-            // std::cout << "Entry: " << entry_path << std::endl;
-            
-            // 1. Regular File
-            if (entry.is_regular_file()) {
+    std::function<void(const std::filesystem::path&, std::string)> explore_directory
+        = [&](const std::filesystem::path& current_path, std::string preamble) {
+            // current_path is the starting point
+            for (const auto& entry : std::filesystem::directory_iterator{
+                     current_path, std::filesystem::directory_options::follow_directory_symlink}) {
+              const std::filesystem::path entry_path = entry.path();
+              // std::cout << "Entry: " << entry_path << std::endl;
+
+              // 1. Regular File
+              if (entry.is_regular_file()) {
                 std::string ext = entry_path.extension();
                 if (this->extensions.contains(ext)) {
-                    // entry_path is absolute; relative will give an relative path
-                    this->sorted.insert(entry_path);
-                    std::filesystem::path rel_path = std::filesystem::relative(entry_path, current_path);
-                    if (preamble != ".")
-                      this->relative_path[entry_path] = preamble / rel_path;
-                    else
-                      this->relative_path[entry_path] = rel_path;
+                  // entry_path is absolute; relative will give an relative path
+                  this->sorted.insert(entry_path);
+                  std::filesystem::path rel_path
+                      = std::filesystem::relative(entry_path, current_path);
+                  if (preamble != ".")
+                    this->relative_path[entry_path] = preamble / rel_path;
+                  else
+                    this->relative_path[entry_path] = rel_path;
                 }
-            }
-
-            if (entry.is_symlink()) {
-              const std::filesystem::path abs_entry_path = std::filesystem::canonical(entry);
-              // std::cout << "Symlink found with abs path " << abs_entry_path << std::endl;
-              // note: no treatment of multiple symlink
-              if ( is_regular_file(abs_entry_path) ) {
-                this->sorted.insert(abs_entry_path);
-                std::filesystem::path rel_path = entry_path.filename();
-                // std::cout << "Rel_path " << rel_path << std::endl;
-                if (preamble != ".")
-                  this->relative_path[entry_path] = preamble / rel_path;
-                else
-                  this->relative_path[entry_path] = rel_path;
               }
 
-              if (is_directory(abs_entry_path)) {
-                std::string dir_name = entry_path.filename().string();
-                // std::cout << "Sym DIR " << abs_entry_path << " with original dir_name " << dir_name << std::endl;
-                if (preamble == ".")
-                  explore_directory(abs_entry_path, dir_name);
-                else
-                  explore_directory(abs_entry_path, preamble + "/" + dir_name);
+              if (entry.is_symlink()) {
+                const std::filesystem::path abs_entry_path = std::filesystem::canonical(entry);
+                // std::cout << "Symlink found with abs path " << abs_entry_path << std::endl;
+                // note: no treatment of multiple symlink
+                if (is_regular_file(abs_entry_path)) {
+                  this->sorted.insert(abs_entry_path);
+                  std::filesystem::path rel_path = entry_path.filename();
+                  // std::cout << "Rel_path " << rel_path << std::endl;
+                  if (preamble != ".")
+                    this->relative_path[entry_path] = preamble / rel_path;
+                  else
+                    this->relative_path[entry_path] = rel_path;
+                }
+
+                if (is_directory(abs_entry_path)) {
+                  std::string dir_name = entry_path.filename().string();
+                  // std::cout << "Sym DIR " << abs_entry_path << " with original dir_name " <<
+                  // dir_name << std::endl;
+                  if (preamble == ".")
+                    explore_directory(abs_entry_path, dir_name);
+                  else
+                    explore_directory(abs_entry_path, preamble + "/" + dir_name);
+                }
+              } else {
+                // 3. Not Symbolic Link but Directory
+                if (entry.is_directory()) {
+                  std::filesystem::path rel_path
+                      = std::filesystem::relative(entry_path, current_path);
+                  // std::cout << "Non sym DIR " << rel_path.generic_string() << std::endl;
+                  if (preamble == ".")
+                    explore_directory(entry_path, rel_path.generic_string());
+                  else
+                    explore_directory(entry_path, preamble + "/" + rel_path.generic_string());
+                }
               }
             }
-            else {
-              // 3. Not Symbolic Link but Directory
-              if (entry.is_directory()) {
-                std::filesystem::path rel_path = std::filesystem::relative(entry_path, current_path);
-                // std::cout << "Non sym DIR " << rel_path.generic_string() << std::endl;
-                if (preamble == ".")
-                  explore_directory(entry_path, rel_path.generic_string());
-                else
-                  explore_directory(entry_path, preamble + "/" + rel_path.generic_string());
-              }
-            }
-        }
-    };
+          };
 
     explore_directory(input_pcap_path, ".");
 
@@ -602,7 +604,5 @@ namespace fpnt {
     }
     std::cout << std::endl;
   }
-
-
 
 }  // namespace fpnt

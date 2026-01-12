@@ -43,7 +43,8 @@ namespace fpnt {
               = std::filesystem::is_regular_file(b) ? std::filesystem::file_size(b) : 0;
 
           if (size_a != size_b) {
-            return size_a > size_b;  // Sort by size (descending order to avoid head of line blocking issue)
+            return size_a > size_b;  // Sort by size (descending order to avoid head of line
+                                     // blocking issue)
           }
         } catch (const std::filesystem::filesystem_error& e) {
           // Fallback to path name sort on file system error
@@ -74,9 +75,10 @@ namespace fpnt {
     std::string csv_path;  // csv_path must be appeared before '*Reader's, for initialization issue.
     std::string in_path;
     std::string out_path;
-    //std::set<std::filesystem::path> sorted;
-    SortedPathSet sorted; // key; absolute path
-    std::map<std::filesystem::path, std::filesystem::path> relative_path; //output relative path from key
+    // std::set<std::filesystem::path> sorted;
+    SortedPathSet sorted;  // key; absolute path
+    std::map<std::filesystem::path, std::filesystem::path>
+        relative_path;  // output relative path from key
 
     TSharkCSVReader in_reader;
     // CSVReader reader_outfmt_pkt;
@@ -86,7 +88,6 @@ namespace fpnt {
     Loader loader;
 
     std::filesystem::path cur_abs_path;
-    
 
     // std::pair<size_t, size_t> Dispatcher::chk_get_valid(std::string& from, std::string& to);
 

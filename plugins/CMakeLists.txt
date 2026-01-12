@@ -10,16 +10,11 @@ set_property(TARGET FPNT_PLUGINS PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_compile_options(FPNT_PLUGINS PRIVATE -Wno-unused-parameter)
 
 # Linking dependencies (loaded from the parent project)
-target_link_libraries(FPNT_PLUGINS PRIVATE 
-    FPNT 
-    nlohmann_json::nlohmann_json 
-    fmt::fmt 
-    csv 
-    gcov
-)
+target_link_libraries(FPNT_PLUGINS PRIVATE FPNT nlohmann_json::nlohmann_json fmt::fmt csv gcov)
 
 # Install settings: install in the same directory as the executable (fpnt)
-install(TARGETS FPNT_PLUGINS 
-    LIBRARY DESTINATION .
-    RUNTIME DESTINATION .
+install(
+  TARGETS FPNT_PLUGINS
+  LIBRARY DESTINATION .
+  RUNTIME DESTINATION .
 )

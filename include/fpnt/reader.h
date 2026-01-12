@@ -29,7 +29,7 @@ namespace fpnt {
 
   public:
     Mapper map;
-    Reader() {};
+    Reader(){};
     Reader(std::string path) { this->path = path; }
     virtual Mapper& read(Loader* loader = NULL) = 0;
   };
@@ -39,9 +39,8 @@ namespace fpnt {
     csv::CSVFormat format;
 
   public:
-    CSVReader() : Reader() {};
-    CSVReader(std::string path, csv::CSVFormat format = default_CSVFormat())
-        : Reader(path) {
+    CSVReader() : Reader(){};
+    CSVReader(std::string path, csv::CSVFormat format = default_CSVFormat()) : Reader(path) {
       this->path = path;
       this->format = format;
     };
@@ -57,7 +56,7 @@ namespace fpnt {
     int minor;
     int patch;
 
-    bool compareVersion(std::string );
+    bool compareVersion(std::string);
     redi::ipstream in;
 
   public:
@@ -65,9 +64,7 @@ namespace fpnt {
     TSharkCSVReader() = delete;
     TSharkCSVReader(std::string tshark_path, std::string path, std::string dfref_path,
                     csv::CSVFormat format = default_CSVFormat())
-        : CSVReader(path, format),
-          in(redi::ipstream(tshark_path + " -v"))
-        {
+        : CSVReader(path, format), in(redi::ipstream(tshark_path + " -v")) {
       this->dfref_path = dfref_path;
     }
 
@@ -85,21 +82,18 @@ namespace fpnt {
 
   public:
     TSharkOutputReader(const nlohmann::json config, TSharkMapper& in_map,
-                       std::vector<nlohmann::json>& in_pkts, std::filesystem::path in_filepath, size_t counter)
+                       std::vector<nlohmann::json>& in_pkts, std::filesystem::path in_filepath,
+                       size_t counter)
         : Reader(in_filepath.c_str()),
           config(config),
           map(in_map),
           tshark_cmd(genTsharkCmd(config, in_map, in_filepath, counter)),
           in(redi::ipstream(tshark_cmd)),
           tshark_input_format(tshark_csv_fmt(in_map.getFields())),
-          in_pkts(in_pkts)
-          {}
+          in_pkts(in_pkts) {}
 
     TSharkMapper& read(Loader* loader = nullptr);
-    
   };
-
-
 
 }  // namespace fpnt
 #endif

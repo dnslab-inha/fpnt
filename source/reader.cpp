@@ -25,28 +25,31 @@ namespace fpnt {
     int x2, y2, z2;
     char temp;
     std::stringstream ss(ver);
-    ss >> x1 >> temp >> y1 >> temp >> z1 >> temp >> temp >> temp >> temp >> x2 >> temp >> y2 >> temp >> z2;
+    ss >> x1 >> temp >> y1 >> temp >> z1 >> temp >> temp >> temp >> temp >> x2 >> temp >> y2 >> temp
+        >> z2;
 
-    if ((a > x1 || (a == x1 && (b > y1 || (b == y1 && c >= z1)))) && 
-        (a < x2 || (a == x2 && (b < y2 || (b == y2 && c <= z2))))) {
-        return;
-    }
-    
-    std::cout << "tshark Version Validation is failed!" << std::endl;
-    std::cout << field << "(" << name << ")" << "'s Version Range is " << ver 
-    << " but the current tshark version is " << a << "." << b << "." << c << std::endl;
-
-    if (a > x2 || (a == x2 && (b > y2 || (b == y2 && c > z2)))) {
-      std::cout << "In this case, display filer reference can be outdated so fpnt will not be terminated." << std::endl;
+    if ((a > x1 || (a == x1 && (b > y1 || (b == y1 && c >= z1))))
+        && (a < x2 || (a == x2 && (b < y2 || (b == y2 && c <= z2))))) {
       return;
     }
-    
+
+    std::cout << "tshark Version Validation is failed!" << std::endl;
+    std::cout << field << "(" << name << ")" << "'s Version Range is " << ver
+              << " but the current tshark version is " << a << "." << b << "." << c << std::endl;
+
+    if (a > x2 || (a == x2 && (b > y2 || (b == y2 && c > z2)))) {
+      std::cout
+          << "In this case, display filer reference can be outdated so fpnt will not be terminated."
+          << std::endl;
+      return;
+    }
+
     exit(1);
   }
 
   Mapper& CSVReader::read(Loader* loader) {
     csv::CSVReader internal_reader(path, format);
-//    std::cout << "READ: " << path << std::endl;
+    //    std::cout << "READ: " << path << std::endl;
     size_t counter = 0;
     for (auto& row : internal_reader) {
       counter++;
@@ -74,9 +77,12 @@ namespace fpnt {
       trim(preprocess_fns_str);
       trim(options);
       std::vector<char> quote_chars{'\"', '\''};
-      for (auto q: quote_chars)
-        if(name[0] == q ||field[0] == q || preprocess_fns_str[0] == q) { // we allow option field can have \' or \"
-          std::cerr << "CSVReader: quote_char is remained; malformed csv files for our internal CSV reader; maybe helpful to remove whitespaces between columns" << std::endl;
+      for (auto q : quote_chars)
+        if (name[0] == q || field[0] == q
+            || preprocess_fns_str[0] == q) {  // we allow option field can have \' or \"
+          std::cerr << "CSVReader: quote_char is remained; malformed csv files for our internal "
+                       "CSV reader; maybe helpful to remove whitespaces between columns"
+                    << std::endl;
           exit(1);
         }
 
@@ -121,12 +127,14 @@ namespace fpnt {
     std::string line;
     bool first = true;
     bool version_validation = true;
-    while(std::getline(in, line)) {
+    while (std::getline(in, line)) {
       if (first) {
         first = false;
         size_t pos = line.find_last_of(" ");
         if (pos == std::string::npos) {
-          std::cout << "tshark does not have a proper version string. version validation will be offed." << std::endl;
+          std::cout
+              << "tshark does not have a proper version string. version validation will be offed."
+              << std::endl;
           version_validation = false;
           break;
         }
@@ -135,9 +143,8 @@ namespace fpnt {
       }
     }
 
-
     csv::CSVReader internal_reader(path, format);
-//    std::cout << "READ: " << path << std::endl;
+    //    std::cout << "READ: " << path << std::endl;
     std::unordered_map<std::string, std::vector<std::string> > dfref_dirs;
 
     for (auto const& dir_entry : std::filesystem::directory_iterator{dfref_path}) {
@@ -213,15 +220,16 @@ namespace fpnt {
         std::ifstream i(path_entry);
         i.imbue(std::locale("en_US.UTF8"));  // we assume that wireshark display filter reference
                                              // will be offered as a UTF8 document.
-        // assumption by using getline, we read '<tr id=...'. We assume 4KB is sufficient to read a line until </tr>
-        // and emperically it is satisfied.
+        // assumption by using getline, we read '<tr id=...'. We assume 4KB is sufficient to read a
+        // line until </tr> and emperically it is satisfied.
         std::size_t l, r;
         for (std::string line; std::getline(i, line);) {
           if ((l = line.find(leftstr)) != std::string::npos) {               // <tr id=... found
             if ((r = line.substr(l).find(rightstr)) != std::string::npos) {  // </tr> found
               found = true;
-              found_string = line.substr(
-                  l, r);  // r is the result of line.substr(l) and the fn call returns a size_t value, it should be r instead of r-1
+              found_string
+                  = line.substr(l, r);  // r is the result of line.substr(l) and the fn call returns
+                                        // a size_t value, it should be r instead of r-1
               break;
             } else {
               std::cerr << "reader_csv_input_tshark: found <tr " << leftstr
@@ -242,7 +250,8 @@ namespace fpnt {
 
       std::string desc, type, ver;
 
-      // found_string contains three columns starting </td><td>. we extract each column in this code snippet
+      // found_string contains three columns starting </td><td>. we extract each column in this code
+      // snippet
       for (int i = 0; i < 3; i++) {
         std::size_t l = found_string.find("</td><td>");
         std::size_t r = found_string.substr(l + 5).find("</td>");
@@ -262,7 +271,7 @@ namespace fpnt {
             break;
         }
       }
-      
+
       if (version_validation) {
         verValid(field, name, ver, major, minor, patch);
       }
@@ -298,7 +307,7 @@ namespace fpnt {
       if (config.contains("fpnt_tshark_error_log")) {
         error_msg += " " + config["fpnt_tshark_error_log"].get<std::string>();
       }
-      
+
       rangBerr(error_msg, rang::fg::red);
       in.close();
       exit(1);
@@ -314,7 +323,7 @@ namespace fpnt {
     // implement early stop, so that line-by-line read is essential.
     while (std::getline(in, line)) {
       if (no_pkts >= early_stop_pkts) {  // if early_stop_pkts == -1, this early stop
-                                                  // function does not work.
+                                         // function does not work.
         rangout(fmt::format("splitter: early_stopped {} in_pkts / {} in_pkts", no_pkts,
                             early_stop_pkts),
                 rang::fg::blue);
@@ -331,13 +340,12 @@ namespace fpnt {
         for (auto& col_name : map.getFields()) {
           row_json[col_name] = row[col_name].get<std::string>();
         }
-        row_json["idx"] = no_pkts++; // Warning: internal state!
+        row_json["idx"] = no_pkts++;  // Warning: internal state!
         in_pkts.push_back(row_json);
       }
 
-      if (no_pkts % 1000000 == 0) // counter for debugging
-        std::cout << "idx: " << no_pkts << std::endl;        
-      
+      if (no_pkts % 1000000 == 0)  // counter for debugging
+        std::cout << "idx: " << no_pkts << std::endl;
     }
 
     return map;
@@ -361,8 +369,8 @@ namespace fpnt {
     } catch (nlohmann::json::basic_json::out_of_range& e) {
       // Do Nothing
     }
-    if (cnt != (size_t) -1)
-        logfile.replace_extension( "." + std::to_string(cnt) + logfile.extension().c_str());
+    if (cnt != (size_t)-1)
+      logfile.replace_extension("." + std::to_string(cnt) + logfile.extension().c_str());
 
     command += " 2>> " + std::string(logfile.c_str());
 
@@ -374,8 +382,7 @@ namespace fpnt {
 
 #ifndef NDEBUG
     std::cout << "File " << filepath << " is now being processed";
-    if(config["multiprocessing"])
-      std::cout << " by process ID " << getpid();
+    if (config["multiprocessing"]) std::cout << " by process ID " << getpid();
     std::cout << "..." << std::endl;
 
     std::cout << command << std::endl;
