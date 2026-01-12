@@ -34,8 +34,9 @@ namespace fpnt {
     }
 
     std::cout << "tshark Version Validation is failed!" << std::endl;
-    std::cout << field << "(" << name << ")" << "'s Version Range is " << ver
-              << " but the current tshark version is " << a << "." << b << "." << c << std::endl;
+    std::cout << field << "(" << name << ")"
+              << "'s Version Range is " << ver << " but the current tshark version is " << a << "."
+              << b << "." << c << std::endl;
 
     if (a > x2 || (a == x2 && (b > y2 || (b == y2 && c > z2)))) {
       std::cout
