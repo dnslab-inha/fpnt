@@ -2,7 +2,6 @@
 #define _LOADER_H
 
 #include <dlfcn.h>
-#include <elf.h>  // ELF64_Sym
 #include <fpnt/mapper.h>
 #include <link.h>  // link_map
 

@@ -4,7 +4,7 @@
 #include <pstream.h>
 #include <sstream>
 #elif defined(__linux__)
-#include <elf.h>
+#include <elf.h>  // ELF64_Sym
 #include <link.h>
 #else
 #error "Unsupported platform for dynamic symbol listing in loader.cpp"
