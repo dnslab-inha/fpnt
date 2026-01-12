@@ -19,7 +19,7 @@ os.makedirs(save_dir, exist_ok=True)
 links = soup.find_all('a', href=True)
 for link in links:
     href = link['href']
-    if href.endswith('.html') and not href.startswith('..') and not href.startswith('http'):
+    if href.endswith('.html') and not href.startswith('/') and not href.startswith('..') and not href.startswith('http'):
         file_url = base_url + href
         
         file_response = requests.get(file_url)

@@ -1,4 +1,4 @@
-# fpnt: a flexible preprocessing framework for network traffic analysis
+# fpnt: an open source flexible preprocessing framework for network traffic analysis
 
 `fpnt` is a C++-based framework to preprocess packet capture files (in `pcap` or `pcapng` format) in order to generate the corresponding Comma-Separated Values (CSV) files with varying levels of traffic granularity: packet, flow, and flowset. For each packet in the packet capture files, extracting and preprocessing various features is possible with the help of `tshark`-based decoding and filtering. Furthermore, by changing (or choosing) the flow and flowset key generation functions written in C++, you can define the notion of flow and flowset for your specific purpose. In addition, loading preprocessing functions as plugins (*i.e.*, shared object in Unix-like systems) is also supported in `fpnt`. Currently, `fpnt` only supports Unix-like systems, and has been tested in Ubuntu Linux.
 
@@ -18,7 +18,7 @@ Debug mode can provide a detailed output during execution.
 
 ```
 mkdir build
-cmake -DCMAKE_BUILD_TYPE=Debug -S./all
+cmake -DCMAKE_BUILD_TYPE=Debug -S./all -Bbuild
 cmake --build ./build --config Debug
 ```
 
@@ -27,7 +27,8 @@ cmake --build ./build --config Debug
 `fpnt` built in Release mode prints minimal output during execution.
 
 ```
-cmake -DCMAKE_BUILD_TYPE=Release -S./all
+mkdir build
+cmake -DCMAKE_BUILD_TYPE=Release -S./all -Bbuild
 cmake --build ./build --config Release
 ```
 
@@ -49,33 +50,35 @@ sudo apt install tshark -y
 
 `fpnt` requires to have a JSON file called `config.json` in the current working directory (CWD). A template `config.json` is provided in the root source directory of `fpnt`.
 
-`fpnt` requires to have a directory called `dfref` to validate `tshark`-decoded input feature configuration. This directory contains HTML files referred by `https://www.wireshark.org/docs/dfref/`. You can crawl the HTML files by executing the given python crawler `crawl_dref.py`. Note that this python file requires [Python 3](https://www.python.org/downloads/) and [BeautifulSoup 4](https://pypi.org/project/beautifulsoup4/). While the following command is not recommended, you can install Python 3 and BeautifulSoup 4 in Ubuntu using the following command:
+`fpnt` requires to have a directory called `dfref` to validate `tshark`-decoded input feature configuration. This directory contains HTML files referred by `https://www.wireshark.org/docs/dfref/`. You can crawl the HTML files by executing the given python crawler `crawl_dfref.py`. Note that this python file requires [Python 3](https://www.python.org/downloads/) and [BeautifulSoup 4](https://pypi.org/project/beautifulsoup4/). While the following command is not recommended, you can install Python 3 and BeautifulSoup 4 in Ubuntu using the following command:
 ```
 sudo apt install python3 python3-bs4 -y
 ```
 
 You can now crawl the HTML files:
 ```
-python3 ./crawl_dref.py
+python3 ./crawl_dfref.py
 ```
 
-Your packet capture files should be located in the `input_pcap_path` directory (e.g., `in_pcap`) and the resulting CSV files will be located in the `output_path` directory (e.g., `out`). If a packet capture file is located in a subdirectory of the `input_pcap_path` directory, the output CSV file will be located, following its relative path to the `output_path` directory. You can change the `input_pcap_path` and `output_path` locations from the corresponding fields in `config.json`. Note that when `fpnt` is executed, the `output_path` directory will be removed if it exists and the `force_remove` field in `config.json` is set to `true`. If the `force_remove` field is set to `false`, the `output_path` directory will not be removed but if it exists, `fpnt` will be terminated without processing.
+Your packet capture files should be located in the `input_pcap_path` directory (e.g., `input_mta`, `input_bfm`) and the resulting CSV files will be located in the `output_path` directory (e.g., `output`). If a packet capture file is located in a subdirectory of the `input_pcap_path` directory, the output CSV file will be located, following its relative path to the `output_path` directory. You can change the `input_pcap_path` and `output_path` locations from the corresponding fields in `config.json`. Note that when `fpnt` is executed, the `output_path` directory will be removed if it exists and the `force_remove` field in `config.json` is set to `true`. If the `force_remove` field is set to `false`, the `output_path` directory will not be removed but if it exists, `fpnt` will be terminated without processing.
 
 `fpnt` requires several CSV files for extracting `tshark`-decoded input features and storing preprocessed output features in different level of traffic granularity. These CSV files should be located in the directory specified in the `configcsv_path` field of `config.json`.
 
-* `config/input_tshark.csv`: specifies `tshark`-decoded input features for each packet. A simple validation (just checking the existence of the features from the crawled `tshark` display filter references)
-* `config/output_pkt.csv`: specifies output features for each packet. In each row of this CSV file, you need to specify preprocessing functions (`P_*` functions) with options in order. Semicolon (`;`) is used for splitting multiple functions (and options) in order.
-* `config/output_flow.csv`: specifies output features for each flow. In each row of this CSV file, you need to specify preprocessing functions (`P_*` functions) with options in order. Semicolon (`;`) is used for splitting multiple functions (and options) in order.
-* `config/output_flowset.csv`: specifies output features for each flowset. In each row of this CSV file, you need to specify preprocessing functions (`P_*` functions) with options in order. Semicolon (`;`) is used for splitting multiple functions (and options) in order.
+* `config_*/input_tshark.csv`: specifies `tshark`-decoded input features for each packet. A simple validation (just checking the existence of the features from the crawled `tshark` display filter references)
+* `config_*/output_pkt.csv`: specifies output features for each packet. In each row of this CSV file, you need to specify preprocessing functions (`P_*` functions) with options in order. Semicolon (`;`) is used for splitting multiple functions (and options) in order.
+* `config_*/output_flow.csv`: specifies output features for each flow. In each row of this CSV file, you need to specify preprocessing functions (`P_*` functions) with options in order. Semicolon (`;`) is used for splitting multiple functions (and options) in order.
+* `config_*/output_flowset.csv`: specifies output features for each flowset. In each row of this CSV file, you need to specify preprocessing functions (`P_*` functions) with options in order. Semicolon (`;`) is used for splitting multiple functions (and options) in order.
 
 To execute `fpnt` executable file, the plugin file `libFPNT_PLUGINS.so` is required. As described in [Locations of important files](#locations-of-important-files) section, building `fpnt` with build directory `build` generates `build/plugins/libFPNT_PLUGINS.so`. This plugin file contains `genKey_*` functions for key generation and `P_*` functions for preprocessing of each output field. These functions are not available in the `fpnt` executable file and will be dynamically loaded when `fpnt` is executed. When the location is changed, you need to change the `plugins_path` field in `config.json`.
 
 ### Executing the `fpnt` executable file
 
-If you do not move the executable file, you can execute `fpnt` using the following command:
+If you do not move the executable file, you can execute `fpnt` using the following command in the root directory of the repository:
 ```
 build/standalone/fpnt
 ```
+
+If you want to execute fpnt in a specific direcory, make sure `config.json` is available in the same directory and you must modify several directory/file paths in `config.json` appropriately.
 
 ## More on configurations
 
