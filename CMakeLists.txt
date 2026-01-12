@@ -9,20 +9,28 @@ project(
   LANGUAGES CXX
 )
 
-# https://stackoverflow.com/questions/58783805/define-debug-and-release-symbols-in-visual-studio-code
-if (CMAKE_BUILD_TYPE STREQUAL "")
-    # Build type is not set eg. command was "cmake .."
-    message(STATUS "  Diag: Build type was unspecified, set to Release")
-    set(CMAKE_BUILD_TYPE Release)
-else ()
-    message(STATUS "  Diag: Build type specified as '${CMAKE_BUILD_TYPE}'")
-endif ()
+# If the install path is not specified, set it to fpnt_release in the user's home directory
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX
+      "$ENV{HOME}/fpnt_release"
+      CACHE PATH "Default install prefix" FORCE
+  )
+endif()
 
-if (${CMAKE_BUILD_TYPE} STREQUAL Debug)
-    set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "_DEBUG")
-else ()
-    set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
-endif ()
+# https://stackoverflow.com/questions/58783805/define-debug-and-release-symbols-in-visual-studio-code
+if(CMAKE_BUILD_TYPE STREQUAL "")
+  # Build type is not set eg. command was "cmake .."
+  message(STATUS "  Diag: Build type was unspecified, set to Release")
+  set(CMAKE_BUILD_TYPE Release)
+else()
+  message(STATUS "  Diag: Build type specified as '${CMAKE_BUILD_TYPE}'")
+endif()
+
+if("${CMAKE_BUILD_TYPE}" STREQUAL Debug)
+  set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "_DEBUG")
+else()
+  set_directory_properties(PROPERTIES COMPILE_DEFINITIONS "NDEBUG")
+endif()
 
 # ---- Include guards ----
 
@@ -42,7 +50,6 @@ include(cmake/CPM.cmake)
 CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.8.0")
 
 include(cmake/dependencies.cmake)
-
 # ---- Add source files ----
 
 # Note: globbing sources is considered bad practice as CMake's generators may not detect new files
@@ -56,42 +63,50 @@ file(GLOB_RECURSE sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/source/
 # target: add_library(${PROJECT_NAME} INTERFACE)
 add_library(${PROJECT_NAME} ${headers} ${sources})
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
+set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # being a cross-platform target, we enforce standards conformance on MSVC
 target_compile_options(${PROJECT_NAME} PUBLIC "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/permissive->")
 
 # Link dependencies
-target_link_libraries(${PROJECT_NAME} PRIVATE fmt::fmt)
-# target_link_libraries(${PROJECT_NAME} PRIVATE csv)
-# target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
-target_link_libraries(${PROJECT_NAME} PRIVATE gcov) # csv requires gcov
-
-target_include_directories(${PROJECT_NAME} PRIVATE ${CPM_PACKAGE_pstreams_SOURCE_DIR})
-target_include_directories(${PROJECT_NAME} PRIVATE ${rang_SOURCE_DIR}/include)
-target_include_directories(${PROJECT_NAME} PRIVATE ${nlohmann_json_SOURCE_DIR}/include)
-target_include_directories(${PROJECT_NAME} PRIVATE ${CLI11_SOURCE_DIR}/include)
-target_include_directories(${PROJECT_NAME} PRIVATE ${csv_SOURCE_DIR}/include)
-target_include_directories(${PROJECT_NAME} INTERFACE ${fmt_INCLUDE_DIR})
-
+link_libraries(--coverage)
+target_link_libraries(${PROJECT_NAME} PUBLIC fmt::fmt)
+target_link_libraries(${PROJECT_NAME} PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(${PROJECT_NAME} PUBLIC CLI11::CLI11)
+target_link_libraries(${PROJECT_NAME} PUBLIC rang)
+target_link_libraries(${PROJECT_NAME} PUBLIC csv)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  target_link_libraries(${PROJECT_NAME} PRIVATE gcov)
+endif()
+target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PStreams_SOURCE_DIR}>)
 target_include_directories(
   ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
-                         $<INSTALL_INTERFACE:include/${PROJECT_NAME}-${PROJECT_VERSION}>
+                         $<INSTALL_INTERFACE:include>
 )
 
 # ---- Create an installable target ----
-# this allows users to install and find the library via `find_package()`.
-# the location where the project's version header will be placed should match the project's regular
-# header paths
+# this allows users to install and find the library via `find_package()`. the location where the
+# project's version header will be placed should match the project's regular header paths
 string(TOLOWER ${PROJECT_NAME}/version.h VERSION_HEADER_LOCATION)
 
-# packageProject(
-#   NAME ${PROJECT_NAME}
-#   VERSION ${PROJECT_VERSION}
-#   NAMESPACE ${PROJECT_NAME}
-#   BINARY_DIR ${PROJECT_BINARY_DIR}
-#   INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
-#   INCLUDE_DESTINATION include/${PROJECT_NAME}-${PROJECT_VERSION}
-#   VERSION_HEADER "${VERSION_HEADER_LOCATION}"
-#   COMPATIBILITY SameMajorVersion
-#   DEPENDENCIES "nlohmann_json >= 3.11.3, csv >= 2.3.0, gcov"
-# )
+# Packaging Configuration via packageProject
+include(GNUInstallDirs)
+packageProject(
+  NAME ${PROJECT_NAME}
+  VERSION ${PROJECT_VERSION}
+  BINARY_DIR ${PROJECT_BINARY_DIR}
+  INCLUDE_DIR ${PROJECT_SOURCE_DIR}/include
+  INCLUDE_DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  COMPATIBILITY SameMajorVersion
+  DEPENDENCIES fmt
+  DEPENDENCIES nlohmann_json
+  DEPENDENCIES CLI11
+  DEPENDENCIES csv
+)
+
+# Copy config.json to the install root directory
+install(FILES "${PROJECT_SOURCE_DIR}/config.json" DESTINATION .)
+
+# Add subdirectories
+add_subdirectory(standalone)
+add_subdirectory(plugins)

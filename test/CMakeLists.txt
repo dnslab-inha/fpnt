@@ -13,9 +13,7 @@ include(../cmake/tools.cmake)
 
 # ---- Dependencies ----
 
-include(../cmake/CPM.cmake)
-
-CPMAddPackage("gh:doctest/doctest@2.4.9")
+CPMAddPackage("gh:doctest/doctest@2.4.12")
 CPMAddPackage("gh:TheLartians/Format.cmake@1.7.3")
 
 if(TEST_INSTALLED_VERSION)
@@ -28,8 +26,7 @@ endif()
 
 file(GLOB sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp)
 add_executable(${PROJECT_NAME} ${sources})
-#target_link_libraries(${PROJECT_NAME} doctest::doctest FPNT)
-target_link_libraries(${PROJECT_NAME} doctest::doctest)
+target_link_libraries(${PROJECT_NAME} doctest::doctest FPNT)
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 
 # enable compiler warnings
@@ -45,6 +42,8 @@ endif()
 # ---- Add GreeterTests ----
 
 enable_testing()
+
+add_test(NAME FPNT_SmokeTest COMMAND fpnt_bin --help)
 
 # Note: doctest and similar testing frameworks can automatically configure CMake tests. For other
 # testing frameworks add the tests target instead: add_test(NAME ${PROJECT_NAME} COMMAND
