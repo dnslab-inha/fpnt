@@ -294,9 +294,12 @@ namespace fpnt {
     std::string line;
     char c = in.get();
     if (c == std::char_traits<char>::eof()) {  // if tshark silently terminated
-      rangBerr("reader: tshark is terminated. check error log"
-                   + config["fpnt_tshark_error_log"].get<std::string>(),
-               rang::fg::red);
+      std::string error_msg = "reader: tshark is terminated. check error log";
+      if (config.contains("fpnt_tshark_error_log")) {
+        error_msg += " " + config["fpnt_tshark_error_log"].get<std::string>();
+      }
+      
+      rangBerr(error_msg, rang::fg::red);
       in.close();
       exit(1);
     } else

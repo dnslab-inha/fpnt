@@ -20,7 +20,7 @@ extern "C" void P_debug(std::string& option, nlohmann::json& record, const std::
     std::cout << "Out Record: " << record.dump() << "\t";
     std::cout << "Mapper: ";
     auto x = fpnt::d->in_map.getFields();
-    for (int i = 0; i < x.size(); i++) {
+    for (size_t i = 0; i < x.size(); i++) {
         std::cout << x[i];
         if (i == x.size() - 1)
             std::cout << "\t";
