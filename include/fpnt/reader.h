@@ -46,6 +46,8 @@ namespace fpnt {
     };
 
     Mapper& read(Loader* loader = nullptr);
+
+    virtual ~CSVReader() = default;
   };
 
   class TSharkCSVReader : public CSVReader {
