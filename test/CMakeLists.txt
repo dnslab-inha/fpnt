@@ -13,14 +13,12 @@ include(../cmake/tools.cmake)
 
 # ---- Dependencies ----
 
-include(../cmake/CPM.cmake)
-
-CPMAddPackage("gh:doctest/doctest@2.4.9")
+CPMAddPackage("gh:doctest/doctest@2.4.12")
 CPMAddPackage("gh:TheLartians/Format.cmake@1.7.3")
 
 if(TEST_INSTALLED_VERSION)
   find_package(FPNT REQUIRED)
-else()
+elseif(NOT TARGET FPNT)
   CPMAddPackage(NAME FPNT SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
 endif()
 
@@ -46,6 +44,8 @@ endif()
 
 enable_testing()
 
+add_test(NAME FPNT_SmokeTest COMMAND fpnt_bin --help)
+
 # Note: doctest and similar testing frameworks can automatically configure CMake tests. For other
 # testing frameworks add the tests target instead: add_test(NAME ${PROJECT_NAME} COMMAND
 # ${PROJECT_NAME})
@@ -59,3 +59,4 @@ if(ENABLE_TEST_COVERAGE)
   target_compile_options(FPNT PUBLIC -O0 -g -fprofile-arcs -ftest-coverage)
   target_link_options(FPNT PUBLIC -fprofile-arcs -ftest-coverage)
 endif()
+
