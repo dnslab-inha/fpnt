@@ -104,8 +104,40 @@ packageProject(
   DEPENDENCIES csv
 )
 
-# Copy config.json to the install root directory
+# Install dfref directory (run crawler if missing) and config.json
+install(CODE "
+  set(DFREF_SRC \"${PROJECT_SOURCE_DIR}/dfref\")
+  if(NOT EXISTS \"\${DFREF_SRC}\")
+    message(STATUS \"dfref directory not found. Executing crawl_dfref.py...\")
+    execute_process(
+      COMMAND python3 \"${PROJECT_SOURCE_DIR}/crawl_dfref.py\"
+      WORKING_DIRECTORY \"${PROJECT_SOURCE_DIR}\"
+    )
+  endif()
+  if(EXISTS \"\${DFREF_SRC}\")
+    file(COPY \"\${DFREF_SRC}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}\")
+  endif()
+")
+
 install(FILES "${PROJECT_SOURCE_DIR}/config.json" DESTINATION .)
+install(CODE "
+  set(CONFIG_PATH \"\${CMAKE_INSTALL_PREFIX}/config.json\")
+  if(EXISTS \"\${CONFIG_PATH}\")
+    file(READ \"\${CONFIG_PATH}\" CONFIG_CONTENT)
+    string(REGEX REPLACE \"\\\"plugins_path\\\": \\\"[^\\\"]*\\\"\" \"\\\"plugins_path\\\": \\\"./libFPNT_PLUGINS.so\\\"\" CONFIG_CONTENT \"\${CONFIG_CONTENT}\")
+    file(WRITE \"\${CONFIG_PATH}\" \"\${CONFIG_CONTENT}\")
+  endif()
+")
+
+# Install config_mta config sample directory
+install(CODE "
+  set(CONFIG_SAMPLE_SRC \"${PROJECT_SOURCE_DIR}/config_mta\")
+  if(EXISTS \"\${CONFIG_SAMPLE_SRC}\")
+    file(COPY \"\${CONFIG_SAMPLE_SRC}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}\")
+  else()
+    message(WARNING \"config_mta sample directory not found at \${CONFIG_SAMPLE_SRC}\")
+  endif()
+")
 
 # Add subdirectories
 add_subdirectory(standalone)
