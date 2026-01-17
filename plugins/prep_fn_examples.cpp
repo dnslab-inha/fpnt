@@ -254,8 +254,8 @@ extern "C" void P_childcount(std::string& option, nlohmann::json& record,
  *
  */
 extern "C" void P_childcountTrue(std::string& option, nlohmann::json& record,
-                             const std::string& granularity, const std::string& key,
-                             const std::string& field) {
+                                 const std::string& granularity, const std::string& key,
+                                 const std::string& field) {
   // option contains out_pkt field name
   // idx contains flow idx
   std::string result = "";
@@ -270,8 +270,8 @@ extern "C" void P_childcountTrue(std::string& option, nlohmann::json& record,
 }
 
 extern "C" void P_childcountFalse(std::string& option, nlohmann::json& record,
-                             const std::string& granularity, const std::string& key,
-                             const std::string& field) {
+                                  const std::string& granularity, const std::string& key,
+                                  const std::string& field) {
   // option contains out_pkt field name
   // idx contains flow idx
   std::string result = "";
@@ -284,8 +284,6 @@ extern "C" void P_childcountFalse(std::string& option, nlohmann::json& record,
 
   record[field] = std::to_string(count);
 }
-
-
 
 /**
  * @brief Packet count for any granuality (without packet)

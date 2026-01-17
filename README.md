@@ -34,7 +34,7 @@ cmake --build ./build --config Release
 
 ### Locations of important files
 
-If you follow the above instructions in either mode, the standlone `fpnt` program will be stored as `build/_deps/fpnt-build/standalone/fpnt` (or `build/standalone/fpnt` in old versions). You need to aware a plugin file (*i.e.*, a shared object file in Unix-like systems) stored as `build/_deps/fpnt-build/plugins/libFPNT_PLUGINS.so` (or `build/plugins/libFPNT_PLUGINS.so` in old versions), since this file is required for executing `fpnt`, while its location can be changed. For more information, check [Requirements](#requirements) section.
+If you follow the above instructions in either mode, the standlone `fpnt` program will be stored as `build/standalone/fpnt` (or `build/_deps/fpnt-build/standalone/fpnt` when using ninja or similar low-level build systems). You need to aware a plugin file (*i.e.*, a shared object file in Unix-like systems) stored as `build/plugins/libFPNT_PLUGINS.so` (or `build/_deps/fpnt-build/plugins/libFPNT_PLUGINS.so` when using ninja or similar low-level build systems), since this file is required for executing `fpnt`, while its location can be changed. For more information, check [Requirements](#requirements) section.
 
 ### How to install and run (Recommended)
 
@@ -73,9 +73,14 @@ sudo apt install tshark -y
 
 `fpnt` requires to have a JSON file called `config.json` in the current working directory (CWD). A template `config.json` is provided in the root source directory of `fpnt`.
 
-`fpnt` requires to have a directory called `dfref` to validate `tshark`-decoded input feature configuration. This directory contains HTML files referred by `https://www.wireshark.org/docs/dfref/`. You can crawl the HTML files by executing the given python crawler `crawl_dfref.py`. Note that this python file requires [Python 3](https://www.python.org/downloads/) and [BeautifulSoup 4](https://pypi.org/project/beautifulsoup4/). While the following command is not recommended, you can install Python 3 and BeautifulSoup 4 in Ubuntu using the following command:
+`fpnt` requires to have a directory called `dfref` to validate `tshark`-decoded input feature configuration. This directory contains HTML files referred by `https://www.wireshark.org/docs/dfref/`. You can crawl the HTML files by executing the given python crawler `crawl_dfref.py`. Note that this python file requires [Python 3](https://www.python.org/downloads/), [Requests](https://requests.readthedocs.io/en/latest/), and [BeautifulSoup 4](https://pypi.org/project/beautifulsoup4/). While the following command is NOT recommended, you can install Python 3, Requests, and BeautifulSoup 4 in Ubuntu using the following command:
 ```
-sudo apt install python3 python3-bs4 -y
+sudo apt install python3 python3-requests python3-bs4 -y
+```
+
+Note that if you installed Python 3 and `pip`, you can install Requests, and BeautifulSoup 4 using the following command:
+```
+pip install bs4 requests
 ```
 
 You can now crawl the HTML files:

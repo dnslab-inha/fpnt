@@ -8,14 +8,12 @@
 #include "dispatcher_ptr.h"
 #include "util_plugins.h"
 
-
 /**
  * @brief Same granularity's field max, assuming double
  *
  */
-extern "C" void P_max_d(std::string& option, nlohmann::json& record,
-                             const std::string& granularity, const std::string& key,
-                             const std::string& field) {
+extern "C" void P_max_d(std::string& option, nlohmann::json& record, const std::string& granularity,
+                        const std::string& key, const std::string& field) {
   nlohmann::json& cnt = fpnt::d->out[granularity][key];
   std::string vectorString = cnt[option];
   std::vector<double> values = stringToVector(vectorString);
@@ -25,11 +23,11 @@ extern "C" void P_max_d(std::string& option, nlohmann::json& record,
     if (val > result) result = val;
   }
 
-  if(result == std::numeric_limits<double>::lowest( )) {
+  if (result == std::numeric_limits<double>::lowest()) {
     // No valid values found
     record[field] = "";
   } else {
-      record[field] = std::to_string(result);
+    record[field] = std::to_string(result);
   }
 }
 
@@ -37,9 +35,8 @@ extern "C" void P_max_d(std::string& option, nlohmann::json& record,
  * @brief Same granularity's field min, assuming double
  *
  */
-extern "C" void P_min_d(std::string& option, nlohmann::json& record,
-                             const std::string& granularity, const std::string& key,
-                             const std::string& field) {
+extern "C" void P_min_d(std::string& option, nlohmann::json& record, const std::string& granularity,
+                        const std::string& key, const std::string& field) {
   nlohmann::json& cnt = fpnt::d->out[granularity][key];
   std::string vectorString = cnt[option];
   std::vector<double> values = stringToVector(vectorString);
@@ -49,14 +46,13 @@ extern "C" void P_min_d(std::string& option, nlohmann::json& record,
     if (val < result) result = val;
   }
 
-  if(result == std::numeric_limits<double>::max( )) {
+  if (result == std::numeric_limits<double>::max()) {
     // No valid values found
     record[field] = "";
   } else {
     record[field] = std::to_string(result);
   }
 }
-
 
 /**
  * @brief Child granularity's field sum, skipping empty fields; assuming long long
@@ -254,14 +250,13 @@ extern "C" void P_childmin_d(std::string& option, nlohmann::json& record,
   record[field] = std::to_string(result);
 }
 
-
 /**
  * @brief Child granularity's field min, assuming double, update only when non-zero value found
  *
  */
 extern "C" void P_childnzmin_d(std::string& option, nlohmann::json& record,
-                             const std::string& granularity, const std::string& key,
-                             const std::string& field) {
+                               const std::string& granularity, const std::string& key,
+                               const std::string& field) {
   // option contains out_pkt field name
   // idx contains flow idx
   double result = std::numeric_limits<double>::max();
