@@ -175,7 +175,6 @@ namespace fpnt {
         } else {  // child
           std::cout << "child" << std::endl;
           process_main(abs_filepath);
-          sleep(5);
           exit(0);
         }
       } else

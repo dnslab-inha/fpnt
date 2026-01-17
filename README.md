@@ -34,9 +34,32 @@ cmake --build ./build --config Release
 
 ### Locations of important files
 
-If you follow the above instructions in either mode, the standlone `fpnt` program will be stored as `build/standalone/fpnt`. You need to aware a plugin file (*i.e.*, a shared object file in Unix-like systems) stored as `build/plugins/libFPNT_PLUGINS.so`, since this file is required for executing `fpnt`, while its location can be changed. For more information, check [Requirements](#requirements) section.
+If you follow the above instructions in either mode, the standlone `fpnt` program will be stored as `build/_deps/fpnt-build/standalone/fpnt` (or `build/standalone/fpnt` in old versions). You need to aware a plugin file (*i.e.*, a shared object file in Unix-like systems) stored as `build/_deps/fpnt-build/plugins/libFPNT_PLUGINS.so` (or `build/plugins/libFPNT_PLUGINS.so` in old versions), since this file is required for executing `fpnt`, while its location can be changed. For more information, check [Requirements](#requirements) section.
 
-## How to execute
+### How to install and run (Recommended)
+
+If you want to install `fpnt` in your home directory, you can use the following command. This command will install `fpnt` into `$HOME/fpnt_release`.
+
+```
+sudo cmake --build build --target install
+cd $HOME/fpnt_release
+```
+
+If you want to change the root directory of `fpnt` to `path-to-fpnt-root`, you can use the following command for installing `fpnt`.
+
+```
+sudo cmake --build build --target install -DCMAKE_INSTALL_PREFIX=path-to-fpnt-root
+cd path-to-fpnt-root
+```
+
+After copying your pcap files into `input_mta` subdirectory, you can run `fpnt with the default mta configruation.
+```
+mkdir input_mta
+cp $HOME/2013-06-18-Neutrino-EK-traffic.pcap ./input_mta/
+fpnt (or ./fpnt if you does not use sudo when installing)
+```
+
+## How to execute (without install)
 
 To execute `fpnt`, several requirements should be satisfied, while some of them can be configured through `config.json`.
 
@@ -75,7 +98,7 @@ To execute `fpnt` executable file, the plugin file `libFPNT_PLUGINS.so` is requi
 
 If you do not move the executable file, you can execute `fpnt` using the following command in the root directory of the repository:
 ```
-build/standalone/fpnt
+build/_deps/fpnt-build/standalone/fpnt
 ```
 
 If you want to execute fpnt in a specific direcory, make sure `config.json` is available in the same directory and you must modify several directory/file paths in `config.json` appropriately.

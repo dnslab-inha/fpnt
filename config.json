@@ -6,7 +6,7 @@
     "sort_by_filesize": true,
     "output_path": "./out_mta",
     "output_type": "csv",
-    "plugins_path": "./build/plugins/libFPNT_PLUGINS.so",
+    "plugins_path": "./build/_deps/fpnt-build/plugins/libFPNT_PLUGINS.so",
     "force_remove": true,
     "dfref_path": "dfref",
     "granularities": "pkt,flow,flowset",

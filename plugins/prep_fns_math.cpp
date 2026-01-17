@@ -8,6 +8,56 @@
 #include "dispatcher_ptr.h"
 #include "util_plugins.h"
 
+
+/**
+ * @brief Same granularity's field max, assuming double
+ *
+ */
+extern "C" void P_max_d(std::string& option, nlohmann::json& record,
+                             const std::string& granularity, const std::string& key,
+                             const std::string& field) {
+  nlohmann::json& cnt = fpnt::d->out[granularity][key];
+  std::string vectorString = cnt[option];
+  std::vector<double> values = stringToVector(vectorString);
+
+  double result = std::numeric_limits<double>::lowest();
+  for (const auto& val : values) {
+    if (val > result) result = val;
+  }
+
+  if(result == std::numeric_limits<double>::lowest( )) {
+    // No valid values found
+    record[field] = "";
+  } else {
+      record[field] = std::to_string(result);
+  }
+}
+
+/**
+ * @brief Same granularity's field min, assuming double
+ *
+ */
+extern "C" void P_min_d(std::string& option, nlohmann::json& record,
+                             const std::string& granularity, const std::string& key,
+                             const std::string& field) {
+  nlohmann::json& cnt = fpnt::d->out[granularity][key];
+  std::string vectorString = cnt[option];
+  std::vector<double> values = stringToVector(vectorString);
+
+  double result = std::numeric_limits<double>::max();
+  for (const auto& val : values) {
+    if (val < result) result = val;
+  }
+
+  if(result == std::numeric_limits<double>::max( )) {
+    // No valid values found
+    record[field] = "";
+  } else {
+    record[field] = std::to_string(result);
+  }
+}
+
+
 /**
  * @brief Child granularity's field sum, skipping empty fields; assuming long long
  *
@@ -199,6 +249,29 @@ extern "C" void P_childmin_d(std::string& option, nlohmann::json& record,
       std::string val_str = cnt[option].get<std::string>();
       double cur_value = atof(val_str.c_str());
       if (cur_value < result) result = cur_value;
+    }
+  }
+  record[field] = std::to_string(result);
+}
+
+
+/**
+ * @brief Child granularity's field min, assuming double, update only when non-zero value found
+ *
+ */
+extern "C" void P_childnzmin_d(std::string& option, nlohmann::json& record,
+                             const std::string& granularity, const std::string& key,
+                             const std::string& field) {
+  // option contains out_pkt field name
+  // idx contains flow idx
+  double result = std::numeric_limits<double>::max();
+  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
+  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
+    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
+    if (!cnt[option].is_null()) {
+      std::string val_str = cnt[option].get<std::string>();
+      double cur_value = atof(val_str.c_str());
+      if (cur_value > 0 && cur_value < result) result = cur_value;
     }
   }
   record[field] = std::to_string(result);
