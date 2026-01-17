@@ -190,6 +190,12 @@ extern "C" void P_iat(std::string& option, nlohmann::json& record, const std::st
       iats.push_back(arrival_times[i] - arrival_times[i - 1]);
     }
 
+    // std::cout << "IATs: ";
+    // for (const auto& iat : iats) {
+    //   std::cout << iat << ", ";
+    // }
+    // std::cout << std::endl;
+
     record[field] = vectorToString(iats);
   } else {
     record[field] = "";
@@ -242,6 +248,44 @@ extern "C" void P_childcount(std::string& option, nlohmann::json& record,
                              const std::string& field) {
   record[field] = std::to_string(fpnt::d->out_child_keys[granularity][key].size());
 }
+
+/**
+ * @brief Return Child count if the value is true
+ *
+ */
+extern "C" void P_childcountTrue(std::string& option, nlohmann::json& record,
+                             const std::string& granularity, const std::string& key,
+                             const std::string& field) {
+  // option contains out_pkt field name
+  // idx contains flow idx
+  std::string result = "";
+  size_t count = 0;
+  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
+  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
+    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
+    if (cnt[option] == "True") count++;
+  }
+
+  record[field] = std::to_string(count);
+}
+
+extern "C" void P_childcountFalse(std::string& option, nlohmann::json& record,
+                             const std::string& granularity, const std::string& key,
+                             const std::string& field) {
+  // option contains out_pkt field name
+  // idx contains flow idx
+  std::string result = "";
+  size_t count = 0;
+  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
+  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
+    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
+    if (cnt[option] == "False") count++;
+  }
+
+  record[field] = std::to_string(count);
+}
+
+
 
 /**
  * @brief Packet count for any granuality (without packet)
