@@ -362,7 +362,7 @@ namespace fpnt {
     // for debugging purpose, vector is used instead of unordered_map
     for (const auto& field : in_map.getFields()) command += " -e \"" + field + "\"";
 
-    command += " -r " + std::string(filepath.c_str());
+    command += " -r \"" + std::string(filepath.c_str()) + "\"";
 
     std::filesystem::path logfile;
     try {  // https://json.nlohmann.me/features/element_access/checked_access/#notes
