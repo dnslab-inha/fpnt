@@ -7,7 +7,7 @@
 "dstport","DstPort","P_cpy;P_fill1","tcp.dstport;udp.dstport"
 "len","Frame Length","P_cpy","frame.len"
 "iplen","IP Total Length","P_cpy","ip.len"
-"dir","Packet Direction","P_dir;P_saveDir",";"
+"dir","Packet Direction","P_dir_ipv4;P_saveDir",";"
 "tls.handshake.version","TLS Handshake Version","P_cpy","tls.handshake.version"
 "tls.handshake.ciphersuite","TLS Offered/Chosen Ciphersuite","P_cpy","tls.handshake.ciphersuite"
 "tls.handshake.cipher_suites_length","TLS Offered Ciphersuite Length","P_cpy","tls.handshake.cipher_suites_length"

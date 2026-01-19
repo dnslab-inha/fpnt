@@ -437,6 +437,61 @@ extern "C" void P_dir(std::string& option, nlohmann::json& record, const std::st
   // std::cout << record.dump() << std::endl;
   std::string flow_key = record["__flow_key"].get<std::string>();
 
+  std::string ipsrc = fpnt::d->in_pkts[idx]["_ws.col.def_src"].get<std::string>();
+
+  size_t l;
+  if ((l = ipsrc.find(',')) != std::string::npos) {
+    ipsrc = ipsrc.substr(0, l);
+  }
+
+  if (ipsrc == "") {
+    record["__dir"] = "0";  // unexpected value
+    return;
+  }
+
+  size_t ipsrc_first = flow_key.find(ipsrc);
+  size_t ipsrc_last = flow_key.rfind(ipsrc);
+  if (ipsrc_first == ipsrc_last) {  // First occurence and last occurence are the same.
+                                    // it implies that ipsrc != ipdst
+    if (ipsrc_first == 0) {         // this packet's ip.src is firstly located
+      record["__dir"] = "+1";
+    } else {  // this packet's ip.src is secondly located
+      record["__dir"] = "-1";
+    }
+  } else {  // 'First occurence and last occurence are different' means that this packet is
+            // exchanged within the same host.
+    std::string dstport = fpnt::d->in_pkts[idx]["tcp.dstport"];
+    if (fpnt::d->in_pkts[idx]["udp.dstport"] != "") {
+      dstport = fpnt::d->in_pkts[idx]["udp.dstport"];
+    }
+
+    if (dstport == "") {      // both tcp and udp has empty dstport
+      record["__dir"] = "0";  // unexpected value
+      return;
+    }
+
+    if (flow_key.length() == flow_key.find(dstport) + dstport.length()) {
+      // dstport is located in the second
+      record["__dir"] = "+1";
+    } else {
+      record["__dir"] = "-1";
+    }
+  }
+}
+
+/** P_dir_ipv4: calculate packet direction (either +1 or -1) based on genKey_flow_ipv4 (a stateless
+ * flow key generation). That is, the first IP address of the flow key is the smaller one, not the
+ * client's IP address. Therefore, When you want to obtain "the TCP style" packet direction
+ * sequence, you need to check whether the first packet's direction is +1 or -1. If it is -1, the
+ * sequence values should be multiplied by -1.
+ */
+extern "C" void P_dir_ipv4(std::string& option, nlohmann::json& record,
+                           const std::string& granularity, const std::string& key,
+                           const std::string& field) {
+  const size_t idx = record["__in_idx"];
+  // std::cout << record.dump() << std::endl;
+  std::string flow_key = record["__flow_key"].get<std::string>();
+
   if (flow_key.substr(flow_key.length() - 5, 5) == "_IPv6") {
     record["__dir"] = "0";  // unexpected value
     return;

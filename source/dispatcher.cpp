@@ -111,6 +111,8 @@ namespace fpnt {
     cur_abs_path = abs_path;
 
     bool ctr_bool = config["log_numbering_concurrency"].get<bool>();
+    std::cout << "Processing file_idx: " << file_idx << ", filepath: " << abs_path << std::endl;
+
     TSharkOutputReader reader_out_tshark(config, in_map, in_pkts, get_in_filepath(),
                                          ctr_bool ? getpid() : -1);
 
@@ -298,7 +300,10 @@ namespace fpnt {
       vec_prep_fns_opts.push_back(prep_fns_opts);
     }
 
-    std::cout << "granuality: " << granularity << std::endl;
+#ifndef NDEBUG
+    std::cout << "Processing granuality: " << granularity << " with "
+              << out_idx2key[granularity].size() << " records." << std::endl;
+#endif
 
     for (size_t idx = 0; idx < out_idx2key[granularity].size(); idx++) {
       idxs[ptr_g] = idx;
@@ -320,7 +325,9 @@ namespace fpnt {
         field_idx++;
       }
 
+#ifndef NDEBUG
       if (idx % 1000000 == 0) std::cout << "idx: " << idx << std::endl;
+#endif
     }
 
     idxs[ptr_g] = -1;
