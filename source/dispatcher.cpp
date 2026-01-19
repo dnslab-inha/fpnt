@@ -7,6 +7,7 @@
 #include <csignal>
 #include <set>
 #include <thread>
+#include <sstream>
 
 namespace fpnt {
   unsigned int max_concurrency = std::thread::hardware_concurrency();
@@ -78,9 +79,9 @@ namespace fpnt {
     std::cout << "--- Loader loaded the following plugin functions:" << std::endl;
     loader.printFns();
     std::cout << "---" << std::endl;
-#endif
 
     std::cout << "Sort by Filesize setting " << config["sort_by_filesize"].get<bool>() << std::endl;
+#endif
 
     // sort_paths
     set_sorted_pcap_paths(in_path);
@@ -111,7 +112,13 @@ namespace fpnt {
     cur_abs_path = abs_path;
 
     bool ctr_bool = config["log_numbering_concurrency"].get<bool>();
-    std::cout << "Processing file_idx: " << file_idx << ", filepath: " << abs_path << std::endl;
+
+    if (config["output_stdout_fileinfo"].is_null() == false) {
+      bool stdout_grans = config.at("output_stdout_fileinfo").get<bool>();
+      if (stdout_grans) {
+        std::cout << "Processing file_idx: " << file_idx << ", filepath: " << abs_path << std::endl;
+      }
+    }
 
     TSharkOutputReader reader_out_tshark(config, in_map, in_pkts, get_in_filepath(),
                                          ctr_bool ? getpid() : -1);
@@ -146,7 +153,9 @@ namespace fpnt {
       int temp_max_concurrency = config.at("max_concurrency").get<int>();
       if (temp_max_concurrency > 0) {
         max_concurrency = temp_max_concurrency;
+#ifndef NDEBUG        
         std::cout << "max_concurrency: " << max_concurrency << std::endl;
+#endif
       }
     } catch (nlohmann::json::basic_json::out_of_range& e) {
       // Do Nothing
@@ -175,7 +184,9 @@ namespace fpnt {
             }
           }
         } else {  // child
+#ifndef NDEBUG         
           std::cout << "child" << std::endl;
+#endif          
           process_main(abs_filepath);
           exit(0);
         }
@@ -226,8 +237,9 @@ namespace fpnt {
     for (size_t i = 0; i < g_lvs.size(); i++) {
       genKeyFns.push_back(loader.getGenKeyFn(config["genKey_" + g_lvs[i]]));
     }
-
+#ifndef NDEBUG
     std::cout << "in_pkts_size: " << in_pkts.size() << std::endl;
+#endif
 
     // this loop assumes that one in_pkt == one out_pkt
     // so that after generating keys out pkts are inserted immediately
@@ -333,6 +345,9 @@ namespace fpnt {
     idxs[ptr_g] = -1;
   }
 
+  /** writer writes the output records of the specified granularity into CSV file
+   * if config["output_stdout_print_granularities"] contains the granularity, it also prints to stdout
+   */
   void Dispatcher::writer(std::string granularity) {
     Mapper* cur_map = nullptr;
     std::string postfix = granularity + ".";
@@ -349,6 +364,29 @@ namespace fpnt {
     auto csv_writer = csv::make_csv_writer(of, false);
     csv_writer << (cur_map->getFields());  // print header line
 
+    bool print_stdout = false;
+    if (config.contains("output_stdout_print_granularities")) {
+      std::string stdout_grans = config.at("output_stdout_print_granularities").get<std::string>();
+      std::stringstream ss(stdout_grans);
+      std::string token;
+      while (std::getline(ss, token, ',')) {
+        // remove leading/trailing whitespaces
+        const auto first = token.find_first_not_of(" \t");
+        if (first == std::string::npos) continue;
+        const auto last = token.find_last_not_of(" \t");
+        if (token.substr(first, (last - first + 1)) == granularity) {
+          print_stdout = true;
+          break;
+        }
+      }
+    }
+
+    csv::CSVWriter<std::ostream>* stdout_writer = nullptr;
+    if (print_stdout) {
+      stdout_writer = new csv::CSVWriter<std::ostream>(std::cout, false);
+      *stdout_writer << (cur_map->getFields());
+    }
+
     // size_t size_fields = cur_map->getFields().size();
     for (size_t idx = 0; idx < out_idx2key[granularity].size(); idx++) {
       const std::string& cnt_out_key = out_idx2key[granularity][idx];
@@ -360,7 +398,9 @@ namespace fpnt {
         row_vector.push_back(row[field]);
       }
       csv_writer << row_vector;
+      if (stdout_writer) *stdout_writer << row_vector;
     }
+    if (stdout_writer) delete stdout_writer;
   }
 
   size_t Dispatcher::get_idx(std::string key, std::string from, std::string to) {  // v0.3
@@ -453,7 +493,9 @@ namespace fpnt {
   void chkOutputDir(const std::filesystem::path& pcap, bool force_remove) {
     if (!std::filesystem::exists(pcap)) {
     file_creation:
+#ifndef NDEBUG
       std::cout << "chkOutputDir: Output directory '" << pcap << "' is creating..." << std::endl;
+#endif
 
       if (std::filesystem::create_directories(pcap) == false) {
         std::cerr << "chkOutputDir: Cannot Create Directory '" << pcap << "'" << std::endl;
@@ -463,9 +505,11 @@ namespace fpnt {
     {
       bool remove_result = false;
       if (force_remove) {
+#ifndef NDEBUG
         std::cout << "chkOutputDir: Output directory '" << pcap
                   << "' is actually a file... It will be deleted!" << std::endl;
-        remove_result = std::filesystem::remove(pcap);
+#endif
+                  remove_result = std::filesystem::remove(pcap);
       }
 
       if (remove_result == false) {
@@ -490,9 +534,12 @@ namespace fpnt {
       if (it != std::filesystem::end(std::filesystem::directory_iterator(pcap))) {  // file exists
         bool remove_result = false;
         if (force_remove) {
+#ifndef NDEBUG          
           std::cout << "chkOutputDir: Output directory '" << pcap
                     << "' exists and non-empty... It will be deleted!" << std::endl;
-          remove_result = std::filesystem::remove_all(pcap);
+#endif
+
+                    remove_result = std::filesystem::remove_all(pcap);
 
           goto file_creation;
         }
@@ -518,69 +565,81 @@ namespace fpnt {
       exit(1);
     }
 
-    // A helper function for recursive exploration
-    std::function<void(const std::filesystem::path&, std::string)> explore_directory
-        = [&](const std::filesystem::path& current_path, std::string preamble) {
-            // current_path is the starting point
-            for (const auto& entry : std::filesystem::directory_iterator{
-                     current_path, std::filesystem::directory_options::follow_directory_symlink}) {
-              const std::filesystem::path entry_path = entry.path();
-              // std::cout << "Entry: " << entry_path << std::endl;
+    // If input path is a regular file (with .pcap or .pcapng extension) or a symbolic link (in a
+    // recursive manner), insert the actual regular file and return
+    if (std::filesystem::is_regular_file(input_pcap_path)) {
+      std::string ext = input_pcap_path.extension();
+      if (this->extensions.contains(ext)) {
+        auto canonical_path = std::filesystem::canonical(input_pcap_path);
+        this->sorted.insert(canonical_path);
+        this->relative_path[canonical_path] = input_pcap_path.filename();
+        return this->sorted;
+      }
+    } else if (std::filesystem::is_directory(input_pcap_path)) {
+      // A helper function for recursive exploration
+      std::function<void(const std::filesystem::path&, std::string)> explore_directory
+          = [&](const std::filesystem::path& current_path, std::string preamble) {
+              // current_path is the starting point
+              for (const auto& entry : std::filesystem::directory_iterator{
+                       current_path, std::filesystem::directory_options::follow_directory_symlink}) {
+                const std::filesystem::path entry_path = entry.path();
+                // std::cout << "Entry: " << entry_path << std::endl;
 
-              // 1. Regular File
-              if (entry.is_regular_file()) {
-                std::string ext = entry_path.extension();
-                if (this->extensions.contains(ext)) {
-                  // entry_path is absolute; relative will give an relative path
-                  this->sorted.insert(entry_path);
-                  std::filesystem::path rel_path
-                      = std::filesystem::relative(entry_path, current_path);
-                  if (preamble != ".")
-                    this->relative_path[entry_path] = preamble / rel_path;
-                  else
-                    this->relative_path[entry_path] = rel_path;
+                // 1. Regular File
+                if (entry.is_regular_file()) {
+                  std::string ext = entry_path.extension();
+                  if (this->extensions.contains(ext)) {
+                    // entry_path is absolute; relative will give an relative path
+                    this->sorted.insert(entry_path);
+                    std::filesystem::path rel_path
+                        = std::filesystem::relative(entry_path, current_path);
+                    if (preamble != ".")
+                      this->relative_path[entry_path] = preamble / rel_path;
+                    else
+                      this->relative_path[entry_path] = rel_path;
+                  }
+                }
+
+                if (entry.is_symlink()) {
+                  const std::filesystem::path abs_entry_path = std::filesystem::canonical(entry);
+                  // std::cout << "Symlink found with abs path " << abs_entry_path << std::endl;
+                  // note: no treatment of multiple symlink
+                  if (is_regular_file(abs_entry_path)) {
+                    this->sorted.insert(abs_entry_path);
+                    std::filesystem::path rel_path = entry_path.filename();
+                    // std::cout << "Rel_path " << rel_path << std::endl;
+                    if (preamble != ".")
+                      this->relative_path[entry_path] = preamble / rel_path;
+                    else
+                      this->relative_path[entry_path] = rel_path;
+                  }
+
+                  if (is_directory(abs_entry_path)) {
+                    std::string dir_name = entry_path.filename().string();
+                    // std::cout << "Sym DIR " << abs_entry_path << " with original dir_name " <<
+                    // dir_name << std::endl;
+                    if (preamble == ".")
+                      explore_directory(abs_entry_path, dir_name);
+                    else
+                      explore_directory(abs_entry_path, preamble + "/" + dir_name);
+                  }
+                } else {
+                  // 3. Not Symbolic Link but Directory
+                  if (entry.is_directory()) {
+                    std::filesystem::path rel_path
+                        = std::filesystem::relative(entry_path, current_path);
+                    // std::cout << "Non sym DIR " << rel_path.generic_string() << std::endl;
+                    if (preamble == ".")
+                      explore_directory(entry_path, rel_path.generic_string());
+                    else
+                      explore_directory(entry_path, preamble + "/" + rel_path.generic_string());
+                  }
                 }
               }
+            };
 
-              if (entry.is_symlink()) {
-                const std::filesystem::path abs_entry_path = std::filesystem::canonical(entry);
-                // std::cout << "Symlink found with abs path " << abs_entry_path << std::endl;
-                // note: no treatment of multiple symlink
-                if (is_regular_file(abs_entry_path)) {
-                  this->sorted.insert(abs_entry_path);
-                  std::filesystem::path rel_path = entry_path.filename();
-                  // std::cout << "Rel_path " << rel_path << std::endl;
-                  if (preamble != ".")
-                    this->relative_path[entry_path] = preamble / rel_path;
-                  else
-                    this->relative_path[entry_path] = rel_path;
-                }
-
-                if (is_directory(abs_entry_path)) {
-                  std::string dir_name = entry_path.filename().string();
-                  // std::cout << "Sym DIR " << abs_entry_path << " with original dir_name " <<
-                  // dir_name << std::endl;
-                  if (preamble == ".")
-                    explore_directory(abs_entry_path, dir_name);
-                  else
-                    explore_directory(abs_entry_path, preamble + "/" + dir_name);
-                }
-              } else {
-                // 3. Not Symbolic Link but Directory
-                if (entry.is_directory()) {
-                  std::filesystem::path rel_path
-                      = std::filesystem::relative(entry_path, current_path);
-                  // std::cout << "Non sym DIR " << rel_path.generic_string() << std::endl;
-                  if (preamble == ".")
-                    explore_directory(entry_path, rel_path.generic_string());
-                  else
-                    explore_directory(entry_path, preamble + "/" + rel_path.generic_string());
-                }
-              }
-            }
-          };
-
-    explore_directory(input_pcap_path, ".");
+      explore_directory(input_pcap_path, ".");
+    }
 
     // print_path_details(this->sorted, "Sort by Filesize Test");
     // exit(0);
