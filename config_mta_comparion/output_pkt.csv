@@ -4,7 +4,7 @@
 "srcport","SrcPort","P_cpy;P_fill1","tcp.srcport;udp.srcport"
 "dstipaddr","DstIPAddr","P_cpy","_ws.col.def_dst"
 "dstport","DstPort","P_cpy;P_fill1","tcp.dstport;udp.dstport"
-"protocol","Protocol","P_cpy","ip.proto"
+"protocol","Protocol","P_cpy;P_fill1","ip.proto;ipv6.nxt"
 "ethsrc","EthSrc","P_cpy","eth.src"
 "ethdst","EthDst","P_cpy","eth.dst"
 "vlanid","VLANID","P_cpy","vlan.id"
