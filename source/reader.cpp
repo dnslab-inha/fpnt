@@ -345,8 +345,11 @@ namespace fpnt {
         in_pkts.push_back(row_json);
       }
 
+#ifndef NDEBUG
       if (no_pkts % 1000000 == 0)  // counter for debugging
         std::cout << "idx: " << no_pkts << std::endl;
+#endif
+
     }
 
     return map;
