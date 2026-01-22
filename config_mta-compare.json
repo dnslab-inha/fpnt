@@ -5,6 +5,8 @@
     "sort_by_filesize": true,
     "output_path": "output_mta_comparion",
     "output_type": "csv",
+    "output_stdout_fileinfo": true,
+    "output_stdout_print_granularities": "",
     "plugins_path": "./build/_deps/fpnt-build/plugins/libFPNT_PLUGINS.so",
     "force_remove": true,
     "dfref_path": "dfref",

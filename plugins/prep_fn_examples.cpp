@@ -92,7 +92,7 @@ extern "C" void P_diff_d(std::string& option, nlohmann::json& record,
   const std::string start_str = record[start_key].get<std::string>();
   const std::string end_str = record[end_key].get<std::string>();
 
-  // 3. 문자열을 double로 변환
+  // 3. Convert string to double
   double start_time;
   double end_time;
 
@@ -104,10 +104,10 @@ extern "C" void P_diff_d(std::string& option, nlohmann::json& record,
                              + std::string(e.what()));
   }
 
-  // 4. 시간차 계산: end_time - start_time
+  // 4. Calculate time difference: end_time - start_time
   double difference = end_time - start_time;
 
-  // 5. 결과를 문자열로 변환하여 record[field]에 저장
+  // 5. Convert result to string and save to record[field]
   record[field] = std::to_string(difference);
 }
 

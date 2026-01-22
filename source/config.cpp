@@ -45,6 +45,10 @@ namespace fpnt {
 
     // TODO: CSV output_type override
 
+    if (config["output_stdout_print_granularities"].is_null()) {
+      config["output_stdout_print_granularities"] = "";
+    }
+
     if (std::filesystem::absolute(config["input_pcap_path"].get<std::string>())
         == std::filesystem::current_path()) {
       std::cerr << "input_pcap_path must not be the current working directory!" << std::endl;
