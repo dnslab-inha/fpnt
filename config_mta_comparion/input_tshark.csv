@@ -6,6 +6,7 @@
 "tcp.dstport","DstPort(TCP)"
 "udp.dstport","DstPort(UDP)"
 "ip.proto","Protocol"
+"ipv6.nxt","Protocol in IPv6"
 "eth.src","EthSrc"
 "eth.dst","EthDst"
 "vlan.id","VLANID"

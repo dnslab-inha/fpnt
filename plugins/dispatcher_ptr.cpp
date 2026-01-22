@@ -10,7 +10,7 @@ namespace fpnt {
       return (*cnt_obj)["__" + to + "_idx"].get<size_t>();
     }
 
-    // chk_get_valid(from, to); 안 써도 됨
+    // chk_get_valid(from, to); not needed
     if (d->g_lv_idx[from] > d->g_lv_idx[to]) {
       std::cerr << "please use get_idxs to access lower granuality records!" << std::endl;
       exit(1);
@@ -28,7 +28,7 @@ namespace fpnt {
       return (*cnt_obj)["__" + to + "_key"].get<std::string>();
     }
 
-    // chk_get_valid(from, to); 안 써도 됨
+    // chk_get_valid(from, to); not needed
     if (d->g_lv_idx[from] > d->g_lv_idx[to]) {
       std::cerr << "please use get_idxs to access lower granuality records!" << std::endl;
       exit(1);
