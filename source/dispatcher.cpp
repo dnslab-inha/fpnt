@@ -490,18 +490,20 @@ namespace fpnt {
     }
   }
 
-  void chkOutputDir(const std::filesystem::path& pcap, bool force_remove) {
-    if (!std::filesystem::exists(pcap)) {
+  void chkOutputDir(const std::filesystem::path& output_dir_path, bool force_remove) {
+    // check whether output directory exists
+    if (!std::filesystem::exists(output_dir_path)) { // does not exist
     file_creation:
 #ifndef NDEBUG
       std::cout << "chkOutputDir: Output directory '" << pcap << "' is creating..." << std::endl;
 #endif
 
-      if (std::filesystem::create_directories(pcap) == false) {
-        std::cerr << "chkOutputDir: Cannot Create Directory '" << pcap << "'" << std::endl;
+      if (std::filesystem::create_directories(output_dir_path) == false) { // create output directory
+        //failed to create
+        std::cerr << "chkOutputDir: Cannot Create Directory '" << output_dir_path << "'" << std::endl;
         exit(1);
       }
-    } else if (std::filesystem::is_regular_file(pcap))  // exists and it is a file
+    } else if (std::filesystem::is_regular_file(output_dir_path))  // exists and it is a file
     {
       bool remove_result = false;
       if (force_remove) {
@@ -509,50 +511,41 @@ namespace fpnt {
         std::cout << "chkOutputDir: Output directory '" << pcap
                   << "' is actually a file... It will be deleted!" << std::endl;
 #endif
-                  remove_result = std::filesystem::remove(pcap);
+                  remove_result = std::filesystem::remove(output_dir_path);
       }
 
       if (remove_result == false) {
-        std::cerr << "chkOutputDir: Cannot Remove File '" << pcap << "'";
+        std::cerr << "chkOutputDir: Cannot Remove File '" << output_dir_path << "'";
         if (!force_remove) std::cerr << "due to force_remove option";
         std::cerr << std::endl;
         exit(1);
       }
 
       goto file_creation;
-    } else if (std::filesystem::is_directory(pcap))  // it is a directory and empty
+    } else if (std::filesystem::is_directory(output_dir_path))  // it is a directory
     {
-      // int i = 0;
-      auto it = std::filesystem::begin(std::filesystem::directory_iterator(pcap));
-
-      //   for (auto& it: std::filesystem::directory_iterator(pcap)) {
-      //     i++;
-      //     break;
-      //   }
-
-      //   if (i != 0) {  // file exists
-      if (it != std::filesystem::end(std::filesystem::directory_iterator(pcap))) {  // file exists
-        bool remove_result = false;
+      auto it = std::filesystem::begin(std::filesystem::directory_iterator(output_dir_path));
+      if (it != std::filesystem::end(std::filesystem::directory_iterator(output_dir_path))) {  // file exists
+        bool remove_result = true;
         if (force_remove) {
 #ifndef NDEBUG          
           std::cout << "chkOutputDir: Output directory '" << pcap
                     << "' exists and non-empty... It will be deleted!" << std::endl;
 #endif
 
-                    remove_result = std::filesystem::remove_all(pcap);
-
-          goto file_creation;
+                    remove_result = std::filesystem::remove_all(output_dir_path);
         }
 
         if (remove_result == false) {
-          std::cerr << "chkOutputDir: Cannot Remove Output Directory '" << pcap << "'";
+          std::cerr << "chkOutputDir: Cannot Remove Output Directory '" << output_dir_path << "'";
           if (!force_remove) std::cerr << "due to force_remove option" << std::endl;
           std::cerr << std::endl;
           exit(1);
         }
       }
     }
-    // guarantees pcap is an empty directory
+    // old version guarantees output dir is an empty directory
+    // currently output dir can be non-empty if force_remove is false
   }
 
   const SortedPathSet& Dispatcher::set_sorted_pcap_paths(std::string path) {

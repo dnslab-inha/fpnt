@@ -166,6 +166,13 @@ namespace fpnt {
       trim(name);
       trim(field);
 
+      // if field contains unplausible characters in display filter references, we skip it
+      // since such fields can be a complex expression rather than a single display filter field.
+      if (field.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.") != std::string::npos) {
+        map.addField(field, name, "", "", "");
+        continue;
+      }
+
       if (field == "") {  // field must be available in the csv file
         std::cerr << "reader_csv_input_tshark: ";
         std::cout << counter << "-th row's tshark display filter field in csv file " << path
