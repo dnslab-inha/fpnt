@@ -73,7 +73,7 @@ extern "C" void P_comma2semicol(std::string& option, nlohmann::json& record,
   record[field] = original;
 }
 
-// 헬퍼 함수: 문자열 앞뒤의 공백을 제거합니다.
+// Helper function: removes leading and trailing whitespace from the string.
 std::string trim2(const std::string& str) {
   size_t first = str.find_first_not_of(" \t\n\r");
   if (std::string::npos == first) {
@@ -145,12 +145,12 @@ extern "C" void P_fast_bfm_fill(std::string& option, nlohmann::json& record,
       //     continue;
       // }
 
-      // 최종 맵핑 키 생성: "SCIDX: -122,φ11"
+      // Create final mapping key: "SCIDX: -122,φ11"
       std::string final_map_key = "SCIDX: " + scidx_str + "," + param_key;
 
       // std::cout << "key: " << key << " field " << final_map_key << std::endl;
 
-      // 6. 데이터 저장
+      // 6. Save data
       // fpnt::d->out["bfm"][key]["SCIDX: -122,φ11"] = 41;
       fpnt::d->out["bfm"][key][final_map_key] = param_value_str;
     }
@@ -181,7 +181,7 @@ extern "C" void P_bfm_fill(std::string& option, nlohmann::json& record,
 
   // option_parts[0] is scidx (subcarrier) in integer (e.g., -122)
   // option_parts[1] is parameter name (e.g., phi)
-  // option_parts[2] is parameter idx (예: 11)
+  // option_parts[2] is parameter idx (e.g.: 11)
 
   const std::string target_scidx_str = option_parts[0];
   const std::string target_param_name = option_parts[1];  // phi or psi
