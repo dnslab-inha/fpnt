@@ -16,7 +16,7 @@
 #include <unordered_map>
 
 namespace fpnt {
-  void chkOutputDir(const std::filesystem::path& pcap, bool force_remove);
+  void chkOutputDir(const std::filesystem::path& output_dir_path, bool force_remove);
   std::set<std::filesystem::path> get_sorted_pcap_paths(std::string path);
   void chkOutFilepath(const std::filesystem::path& out_filepath);
   std::set<std::string> default_extensions();
