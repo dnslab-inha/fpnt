@@ -493,15 +493,18 @@ namespace fpnt {
 
   void chkOutputDir(const std::filesystem::path& output_dir_path, bool force_remove) {
     // check whether output directory exists
-    if (!std::filesystem::exists(output_dir_path)) { // does not exist
+    if (!std::filesystem::exists(output_dir_path)) {  // does not exist
     file_creation:
 #ifndef NDEBUG
-      std::cout << "chkOutputDir: Output directory '" << output_dir_path << "' is creating..." << std::endl;
+      std::cout << "chkOutputDir: Output directory '" << output_dir_path << "' is creating..."
+                << std::endl;
 #endif
 
-      if (std::filesystem::create_directories(output_dir_path) == false) { // create output directory
-        //failed to create
-        std::cerr << "chkOutputDir: Cannot Create Directory '" << output_dir_path << "'" << std::endl;
+      if (std::filesystem::create_directories(output_dir_path)
+          == false) {  // create output directory
+        // failed to create
+        std::cerr << "chkOutputDir: Cannot Create Directory '" << output_dir_path << "'"
+                  << std::endl;
         exit(1);
       }
     } else if (std::filesystem::is_regular_file(output_dir_path))  // exists and it is a file
@@ -512,7 +515,7 @@ namespace fpnt {
         std::cout << "chkOutputDir: Output directory '" << output_dir_path
                   << "' is actually a file... It will be deleted!" << std::endl;
 #endif
-                  remove_result = std::filesystem::remove(output_dir_path);
+        remove_result = std::filesystem::remove(output_dir_path);
       }
 
       if (remove_result == false) {
@@ -526,7 +529,9 @@ namespace fpnt {
     } else if (std::filesystem::is_directory(output_dir_path))  // it is a directory
     {
       auto it = std::filesystem::begin(std::filesystem::directory_iterator(output_dir_path));
-      if (it != std::filesystem::end(std::filesystem::directory_iterator(output_dir_path))) {  // file exists
+      if (it
+          != std::filesystem::end(
+              std::filesystem::directory_iterator(output_dir_path))) {  // file exists
         bool remove_result = true;
         if (force_remove) {
 #ifndef NDEBUG
@@ -534,7 +539,7 @@ namespace fpnt {
                     << "' exists and non-empty... It will be deleted!" << std::endl;
 #endif
 
-                    remove_result = std::filesystem::remove_all(output_dir_path);
+          remove_result = std::filesystem::remove_all(output_dir_path);
 
           goto file_creation;
         }
