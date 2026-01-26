@@ -168,7 +168,9 @@ namespace fpnt {
 
       // if field contains unplausible characters in display filter references, we skip it
       // since such fields can be a complex expression rather than a single display filter field.
-      if (field.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.") != std::string::npos) {
+      if (field.find_first_not_of(
+              "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.")
+          != std::string::npos) {
         map.addField(field, name, "", "", "");
         continue;
       }
