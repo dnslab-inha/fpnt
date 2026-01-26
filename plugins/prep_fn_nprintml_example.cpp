@@ -7,10 +7,10 @@
 #include "dispatcher_ptr.h"
 #include "util_plugins.h"
 
-/** getsubstr retrieves a substring of record[fieldname].get<std::string>() based on the string option
- * and saves it to record[field]. For example, if option is "fieldname,5,10",
- * it extracts the substring from index 5 to 10 from the value of record[fieldname]. If the given string is
- * shorter than the range specified in option, it returns the possible substring. If the given string is
+/** getsubstr retrieves a substring of record[fieldname].get<std::string>() based on the string
+ * option and saves it to record[field]. For example, if option is "fieldname,5,10", it extracts the
+ * substring from index 5 to 10 from the value of record[fieldname]. If the given string is shorter
+ * than the range specified in option, it returns the possible substring. If the given string is
  * empty, record[field] is set to an empty string. For example, when record["supported_group"] =
  * "0x001d,0x0017,0x0018", if option is "supported_group,0,6", the result is "0x001d", and if
  *   option is "supported_group,7,13", the result is "0x0017".
@@ -74,15 +74,14 @@ extern "C" void P_getsubstr(std::string& option, nlohmann::json& record,
   record[field] = val.substr(start, len);
 }
 
-/** P_getsubstr_by_comma retrieves a substring of record[fieldname].get<std::string>() based on the string option
- * and saves it to record[field]. For example, if option is "fieldname,0",
- * it extracts the first substring by splitting record[fieldname] with ','. Also, if option is
- * "fieldname,1", it extracts the second substring by splitting record[fieldname] with ','. If
+/** P_getsubstr_by_comma retrieves a substring of record[fieldname].get<std::string>() based on the
+ * string option and saves it to record[field]. For example, if option is "fieldname,0", it extracts
+ * the first substring by splitting record[fieldname] with ','. Also, if option is "fieldname,1", it
+ * extracts the second substring by splitting record[fieldname] with ','. If
  * record[fieldname].get<std::string>() has no comma, exceeds the range, or is empty,
- * record[field] is set to an empty string. For example, when record["handshake_type"] = "2,11,12,13,14",
- *   if option is "handshake_type,0", the result is "2",
- *   if option is "handshake_type,1", the result is "11",
- *   if option is "handshake_type,5", the result is "".
+ * record[field] is set to an empty string. For example, when record["handshake_type"] =
+ * "2,11,12,13,14", if option is "handshake_type,0", the result is "2", if option is
+ * "handshake_type,1", the result is "11", if option is "handshake_type,5", the result is "".
  */
 extern "C" void P_getsubstr_by_comma(std::string& option, nlohmann::json& record,
                                      const std::string& granularity, const std::string& key,
