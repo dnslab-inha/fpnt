@@ -8,6 +8,8 @@
 "udp.dstport","DstPort(UDP)"
 "frame.len","Ethernet Length"
 "ip.len","IPv4 Total Length"
+"ip.proto","IPv4 Protocol"
+"ipv6.nxt","IPv6 Next Header"
 "tls.handshake.version","TLS Handshake Version"
 "tls.handshake.ciphersuite","TLS Offered/Chosen Ciphersuite"
 "tls.handshake.cipher_suites_length","TLS Offered Ciphersuite Length"
