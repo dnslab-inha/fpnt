@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <tuple>
@@ -136,6 +137,47 @@ extern "C" void P_childagg(std::string& option, nlohmann::json& record,
 }
 
 /**
+ * @brief Child granularity's field aggregation, ordered by __real_arrival_order, without skipping
+ * empty fields
+ *
+ */
+extern "C" void P_childagg_real_arrival_order(std::string& option, nlohmann::json& record,
+                                              const std::string& granularity,
+                                              const std::string& key, const std::string& field) {
+  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
+  std::vector<std::pair<size_t, std::string>> ordered_vals;
+
+  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
+    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
+
+    if (cnt["__real_arrival_order"].is_null()) {
+      std::cerr << "P_childagg_real_arrival_order: Missing __real_arrival_order in child record!"
+                << std::endl;
+      exit(1);
+    }
+
+    size_t order = cnt["__real_arrival_order"].get<size_t>();
+    std::string val_str = "";
+    if (!cnt[option].is_null()) {
+      val_str = cnt[option].get<std::string>();
+    }
+    ordered_vals.push_back({order, val_str});
+  }
+
+  std::sort(ordered_vals.begin(), ordered_vals.end(),
+            [](const std::pair<size_t, std::string>& a, const std::pair<size_t, std::string>& b) {
+              return a.first < b.first;
+            });
+
+  std::string result = "";
+  for (size_t i = 0; i < ordered_vals.size(); ++i) {
+    if (i > 0) result += ",";
+    result += ordered_vals[i].second;
+  }
+  record[field] = result;
+}
+
+/**
  * @brief Packet field aggregation for flow, with skipping empty fields
  *
  */
@@ -196,6 +238,46 @@ extern "C" void P_iat(std::string& option, nlohmann::json& record, const std::st
     // }
     // std::cout << std::endl;
 
+    record[field] = vectorToString(iats);
+  } else {
+    record[field] = "";
+  }
+}
+
+/**
+ * @brief Interarrival Time Sequence for Flow with Arrival Order Correction
+ *
+ */
+extern "C" void P_iat_correct(std::string& option, nlohmann::json& record,
+                              const std::string& granularity, const std::string& key,
+                              const std::string& field) {
+  std::vector<std::pair<std::string, double>> ordered_arrivals;
+
+  for (auto& pkt_key : fpnt::get_keys(key, granularity, "pkt")) {
+    nlohmann::json& cnt = fpnt::d->out["pkt"][pkt_key];
+    if (cnt[option].is_null()) {
+      std::cerr << "P_iat_correct: Empty arrival time value!" << std::endl;
+      exit(1);
+    }
+
+    double cnt_arrival_time = std::stod(cnt[option].get<std::string>());
+    ordered_arrivals.push_back({pkt_key, cnt_arrival_time});
+  }
+
+  std::sort(ordered_arrivals.begin(), ordered_arrivals.end(),
+            [](const std::pair<std::string, double>& a, const std::pair<std::string, double>& b) {
+              return a.second < b.second;
+            });
+
+  std::vector<double> iats;
+  for (size_t i = 0; i < ordered_arrivals.size(); ++i) {
+    fpnt::d->out["pkt"][ordered_arrivals[i].first]["__real_arrival_order"] = i;
+    if (i > 0) {
+      iats.push_back(ordered_arrivals[i].second - ordered_arrivals[i - 1].second);
+    }
+  }
+
+  if (ordered_arrivals.size() > 1) {
     record[field] = vectorToString(iats);
   } else {
     record[field] = "";
@@ -449,20 +531,43 @@ extern "C" void P_dir(std::string& option, nlohmann::json& record, const std::st
     return;
   }
 
-  size_t ipsrc_first = flow_key.find(ipsrc);
-  size_t ipsrc_last = flow_key.rfind(ipsrc);
-  if (ipsrc_first == ipsrc_last) {  // First occurence and last occurence are the same.
-                                    // it implies that ipsrc != ipdst
-    if (ipsrc_first == 0) {         // this packet's ip.src is firstly located
+  size_t comma_pos = flow_key.find(',');
+  if (comma_pos == std::string::npos) {
+    record["__dir"] = "0";
+    return;
+  }
+
+  std::string ep1 = flow_key.substr(0, comma_pos);
+  std::string ep2 = flow_key.substr(comma_pos + 1);
+
+  size_t slash_pos = ep2.find('/');
+  if (slash_pos != std::string::npos) {
+    ep2 = ep2.substr(0, slash_pos);
+  }
+
+  size_t ep1_colon = ep1.rfind(':');
+  size_t ep2_colon = ep2.rfind(':');
+
+  if (ep1_colon == std::string::npos || ep2_colon == std::string::npos) {
+    record["__dir"] = "0";
+    return;
+  }
+
+  std::string ip1 = ep1.substr(0, ep1_colon);
+  std::string ip2 = ep2.substr(0, ep2_colon);
+
+  if (ip1 != ip2) {
+    if (ipsrc == ip1) {
       record["__dir"] = "+1";
-    } else {  // this packet's ip.src is secondly located
+    } else if (ipsrc == ip2) {
       record["__dir"] = "-1";
+    } else {
+      record["__dir"] = "0";
     }
-  } else {  // 'First occurence and last occurence are different' means that this packet is
-            // exchanged within the same host.
-    std::string dstport = fpnt::d->in_pkts[idx]["tcp.dstport"];
-    if (fpnt::d->in_pkts[idx]["udp.dstport"] != "") {
-      dstport = fpnt::d->in_pkts[idx]["udp.dstport"];
+  } else {
+    std::string dstport = fpnt::d->in_pkts[idx]["tcp.dstport"].get<std::string>();
+    if (fpnt::d->in_pkts[idx]["udp.dstport"].get<std::string>() != "") {
+      dstport = fpnt::d->in_pkts[idx]["udp.dstport"].get<std::string>();
     }
 
     if (dstport == "") {      // both tcp and udp has empty dstport
@@ -470,8 +575,9 @@ extern "C" void P_dir(std::string& option, nlohmann::json& record, const std::st
       return;
     }
 
-    if (flow_key.length() == flow_key.find(dstport) + dstport.length()) {
-      // dstport is located in the second
+    std::string port2 = ep2.substr(ep2_colon + 1);
+
+    if (dstport == port2) {
       record["__dir"] = "+1";
     } else {
       record["__dir"] = "-1";
@@ -492,31 +598,54 @@ extern "C" void P_dir_ipv4(std::string& option, nlohmann::json& record,
   // std::cout << record.dump() << std::endl;
   std::string flow_key = record["__flow_key"].get<std::string>();
 
-  if (flow_key.substr(flow_key.length() - 5, 5) == "_IPv6") {
+  if (flow_key.length() >= 5 && flow_key.substr(flow_key.length() - 5, 5) == "_IPv6") {
     record["__dir"] = "0";  // unexpected value
     return;
   }
 
-  std::string ipsrc = fpnt::d->in_pkts[idx]["ip.src"];
+  std::string ipsrc = fpnt::d->in_pkts[idx]["ip.src"].get<std::string>();
   if (ipsrc == "") {
     record["__dir"] = "0";  // unexpected value
     return;
   }
 
-  size_t ipsrc_first = flow_key.find(ipsrc);
-  size_t ipsrc_last = flow_key.rfind(ipsrc);
-  if (ipsrc_first == ipsrc_last) {  // First occurence and last occurence are the same.
-                                    // it implies that ipsrc != ipdst
-    if (ipsrc_first == 0) {         // this packet's ip.src is firstly located
+  size_t comma_pos = flow_key.find(',');
+  if (comma_pos == std::string::npos) {
+    record["__dir"] = "0";
+    return;
+  }
+
+  std::string ep1 = flow_key.substr(0, comma_pos);
+  std::string ep2 = flow_key.substr(comma_pos + 1);
+
+  size_t slash_pos = ep2.find('/');
+  if (slash_pos != std::string::npos) {
+    ep2 = ep2.substr(0, slash_pos);
+  }
+
+  size_t ep1_colon = ep1.rfind(':');
+  size_t ep2_colon = ep2.rfind(':');
+
+  if (ep1_colon == std::string::npos || ep2_colon == std::string::npos) {
+    record["__dir"] = "0";
+    return;
+  }
+
+  std::string ip1 = ep1.substr(0, ep1_colon);
+  std::string ip2 = ep2.substr(0, ep2_colon);
+
+  if (ip1 != ip2) {
+    if (ipsrc == ip1) {
       record["__dir"] = "+1";
-    } else {  // this packet's ip.src is secondly located
+    } else if (ipsrc == ip2) {
       record["__dir"] = "-1";
+    } else {
+      record["__dir"] = "0";
     }
-  } else {  // 'First occurence and last occurence are different' means that this packet is
-            // exchanged within the same host.
-    std::string dstport = fpnt::d->in_pkts[idx]["tcp.dstport"];
-    if (fpnt::d->in_pkts[idx]["udp.dstport"] != "") {
-      dstport = fpnt::d->in_pkts[idx]["udp.dstport"];
+  } else {
+    std::string dstport = fpnt::d->in_pkts[idx]["tcp.dstport"].get<std::string>();
+    if (fpnt::d->in_pkts[idx]["udp.dstport"].get<std::string>() != "") {
+      dstport = fpnt::d->in_pkts[idx]["udp.dstport"].get<std::string>();
     }
 
     if (dstport == "") {      // both tcp and udp has empty dstport
@@ -524,8 +653,9 @@ extern "C" void P_dir_ipv4(std::string& option, nlohmann::json& record,
       return;
     }
 
-    if (flow_key.length() == flow_key.find(dstport) + dstport.length()) {
-      // dstport is located in the second
+    std::string port2 = ep2.substr(ep2_colon + 1);
+
+    if (dstport == port2) {
       record["__dir"] = "+1";
     } else {
       record["__dir"] = "-1";

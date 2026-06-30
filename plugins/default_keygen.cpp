@@ -208,6 +208,10 @@ const std::string genKey_flow_default_5tuple(const nlohmann::json& pkt, std::str
     ip_proto = ipv6_nxt;
   }
 
+  if ((l = ip_proto.find(',')) != std::string::npos) {
+    ip_proto = ip_proto.substr(0, l);
+  }
+
   int keycomp = atoi(cur_srcport.c_str()) - atoi(cur_dstport.c_str());
   if (keycomp == 0)  // the port number same case
   {
@@ -562,6 +566,10 @@ const std::string genKey_flow_directional_default_5tuple(const nlohmann::json& p
     ip_proto = ipv6_nxt;
   }
 
+  if ((l = ip_proto.find(',')) != std::string::npos) {
+    ip_proto = ip_proto.substr(0, l);
+  }
+
   cur_key
       = fmt::format("{0}:{1},{2}:{3}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport, ip_proto);
 
@@ -643,6 +651,10 @@ const std::string genKey_flow_directional_ipv4_5tuple(const nlohmann::json& pkt,
   if (ip_proto.compare("") == 0) {
     std::string ipv6_nxt = pkt["ipv6.nxt"].get<std::string>();
     ip_proto = ipv6_nxt;
+  }
+
+  if ((l = ip_proto.find(',')) != std::string::npos) {
+    ip_proto = ip_proto.substr(0, l);
   }
 
   cur_key

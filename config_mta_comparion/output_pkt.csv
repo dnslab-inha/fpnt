@@ -14,4 +14,4 @@
 "tcp_flags_syn","TCP Flags SYN","P_cpy","tcp.flags.syn"
 "tcp_flags_ack","TCP Flags ACK","P_cpy","tcp.flags.ack"
 "tcp_flags_reset","TCP Flags RST","P_cpy","tcp.flags.reset"
-"tcpflags_fin","TCP Flags FIN","P_cpy","tcp.flags.fin"
+"tcp_flags_fin","TCP Flags FIN","P_cpy","tcp.flags.fin"
