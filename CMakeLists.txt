@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.14...3.22)
 
 project(
   FPNT
-  VERSION 0.3
+  VERSION 0.40
   DESCRIPTION "FPNT: a flexible preprocessor framework for network traffic"
   LANGUAGES CXX
 )

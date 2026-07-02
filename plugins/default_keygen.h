@@ -6,31 +6,17 @@
 #include <string>
 #include <utility>
 
-extern "C" const std::string genKey_pkt_default(const nlohmann::json& pkt, std::string&,
-                                                std::string&);
-extern "C" const std::string genKey_flow_default(const nlohmann::json& pkt, std::string&,
-                                                 std::string&);
-extern "C" const std::string genKey_flowset_default(const nlohmann::json& pkt, std::string&,
-                                                    std::string&);
-extern "C" const std::string genKey_flow_directional(const nlohmann::json& pkt,
-                                                     std::string& granularity, std::string& key);
-extern "C" const std::string genKey_flow_default_5tuple(const nlohmann::json& pkt, std::string&,
-                                                        std::string&);
-extern "C" const std::string genKey_flow_directional_default_5tuple(const nlohmann::json& pkt,
-                                                                    std::string& granularity,
-                                                                    std::string& key);
+extern "C" const std::string genKey_pkt_default(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
+extern "C" const std::string genKey_flow_default(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
+extern "C" const std::string genKey_flowset_default(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
+extern "C" const std::string genKey_flow_directional(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx);
+extern "C" const std::string genKey_flow_default_5tuple(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
+extern "C" const std::string genKey_flow_directional_default_5tuple(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx);
 
-extern "C" const std::string genKey_flow_ipv4(const nlohmann::json& pkt, std::string&,
-                                              std::string&);
-extern "C" const std::string genKey_flowset_ipv4(const nlohmann::json& pkt, std::string&,
-                                                 std::string&);
-extern "C" const std::string genKey_flow_directional_ipv4(const nlohmann::json& pkt,
-                                                          std::string& granularity,
-                                                          std::string& key);
-extern "C" const std::string genKey_flow_directional_ipv4_5tuple(const nlohmann::json& pkt,
-                                                                 std::string& granularity,
-                                                                 std::string& key);
+extern "C" const std::string genKey_flow_ipv4(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
+extern "C" const std::string genKey_flowset_ipv4(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
+extern "C" const std::string genKey_flow_directional_ipv4(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx);
+extern "C" const std::string genKey_flow_directional_ipv4_5tuple(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx);
 
-extern "C" const std::string genKey_pkt_cbr(const nlohmann::json& pkt, std::string&, std::string&);
-extern "C" const std::string genKey_protocol_default(const nlohmann::json& pkt,
-                                                     std::string& granularity, std::string& key);
+extern "C" const std::string genKey_pkt_cbr(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
+extern "C" const std::string genKey_protocol_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx);

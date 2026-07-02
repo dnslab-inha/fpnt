@@ -23,6 +23,13 @@ namespace fpnt {
     }
   }
 
+  void Mapper::freeMemory() {
+    idx_to_desc.clear();
+    idx_to_desc.shrink_to_fit();
+    idx_to_type.clear();
+    idx_to_type.shrink_to_fit();
+  }
+
   std::vector<std::pair<std::string, std::string> > Mapper::getPrepFns(const std::string& field) {
     auto [str_prep_fns, str_options] = prep_fns[field];
 
@@ -107,6 +114,12 @@ namespace fpnt {
       std::cout << "Versions: " << getVer(idx) << std::endl;
       std::cout << "--------------------------------------------" << std::endl;
     }
+  }
+
+  void TSharkMapper::freeMemory() {
+    Mapper::freeMemory();
+    idx_to_ver.clear();
+    idx_to_ver.shrink_to_fit();
   }
 
 }  // end of namespace fpnt

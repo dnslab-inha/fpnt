@@ -55,13 +55,7 @@ namespace fpnt {
         } else if (name.rfind("genKey_", 0) == 0) {
           map_genkeyfns[name] = NULL;
         }
-      } else if (type == "D" || type == "d" || type == "C") {  // 'D'/'d' is data, 'C' is common
-        // It's an object
-        if (name == "d") {
-          find_dispatcher_ptr = true;
-        }
       }
-    }
 #elif defined(__linux__)
     struct link_map *map = nullptr;
     dlinfo(handle, RTLD_DI_LINKMAP, &map);
@@ -83,7 +77,6 @@ namespace fpnt {
       }
     }
 
-    bool find_dispatcher_ptr = false;
     if (symtab && strtab && symentries > 0) {
       int size = strtab - (char *)symtab;
       for (int k = 0; k < size / symentries; ++k) {
@@ -95,19 +88,10 @@ namespace fpnt {
           } else if (str.rfind("genKey_", 0) == 0) {
             map_genkeyfns[str] = NULL;
           }
-        } else if (ELF64_ST_TYPE(sym->st_info) == STT_OBJECT) {
-          std::string str = &strtab[sym->st_name];
-          if (str == "d") {
-            find_dispatcher_ptr = true;
-          }
         }
       }
     }
 #endif
-    if (!find_dispatcher_ptr) {
-      std::cerr << "Dispatcher's pointer is not available in your library!" << std::endl;
-      exit(1);
-    }
   }
 
   bool Loader::validate(const std::string &str_fn) {
@@ -119,15 +103,7 @@ namespace fpnt {
     return false;
   }
 
-  void *Loader::getDispatcherPtr() {
-    char *error;
-    void *symptr = dlsym(handle, "d");
-    if ((error = dlerror()) != NULL) {
-      std::cerr << error << std::endl;
-      exit(1);
-    }
-    return symptr;
-  }
+
 
   fnptr_PrepFn Loader::getPrepFn(std::string &str_fn) {
     fnptr_PrepFn fnptr = NULL;

@@ -1,4 +1,5 @@
 #include <fpnt/dispatcher.h>
+#include <fpnt/plugin_context.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -8,6 +9,7 @@
 #include <set>
 #include <sstream>
 #include <thread>
+#include <memory>
 
 namespace fpnt {
   unsigned int max_concurrency = std::thread::hardware_concurrency();
@@ -70,8 +72,7 @@ namespace fpnt {
     force_remove = config["force_remove"].get<bool>();
     // std::cout << csv_path << std::endl;
 
-    Dispatcher** d = (Dispatcher**)loader.getDispatcherPtr();
-    *d = this;
+
 
     chkOutputDir(out_path, force_remove);
 
@@ -172,7 +173,7 @@ namespace fpnt {
           counter++;
           child_processes.insert(rc);
           //          std::cout << "Counter: " << no_processes << std::endl;
-          if (child_processes.size() >= max_concurrency - 1) {
+          if (child_processes.size() >= std::max(2u, max_concurrency) - 1) {
             int wc = wait(NULL);
             if (wc == -1) {
               if (errno != ECHILD) {
@@ -251,10 +252,9 @@ namespace fpnt {
       for (size_t i = 0; i < g_lvs.size(); i++) {
         size_t cnt = (g_lvs.size() - 1)
                      - i;  // iterate from the top (the most grouped) granularity to the bottom
-        keys[cnt] = genKeyFns[cnt](in_pkts[idx], g_lvs[cnt], keys[cnt]);
+        keys[cnt] = genKeyFns[cnt](in_pkts[idx], g_lvs[cnt], keys[cnt], file_idx);
 
-        in_pkts[idx]["__" + g_lvs[cnt] + "_key"]
-            = keys[cnt];  // inject the generated key to in_pkts
+        // in_pkts[idx]["__" + g_lvs[cnt] + "_key"] = keys[cnt];  // inject the generated key to in_pkts
 
         size_t cnt_idx = out_keys[g_lvs[cnt]].size();
         auto result
@@ -305,11 +305,15 @@ namespace fpnt {
 
     auto out_fields = out_maps[granularity].getFields();
 
-    // optimization for prep_fns_opts; more optimization is needed
-    std::vector<std::vector<std::pair<std::string, std::string>>> vec_prep_fns_opts;
+    // optimization for prep_fns_opts
+    std::vector<std::vector<std::pair<fnptr_PrepFn, std::string>>> vec_prep_fns_opts;
     for (auto& out_field : out_fields) {
       auto prep_fns_opts = out_maps[granularity].getPrepFns(out_field);
-      vec_prep_fns_opts.push_back(prep_fns_opts);
+      std::vector<std::pair<fnptr_PrepFn, std::string>> field_prep_fns;
+      for (auto& [str_fn, option] : prep_fns_opts) {
+        field_prep_fns.push_back({loader.getPrepFn(str_fn), option});
+      }
+      vec_prep_fns_opts.push_back(field_prep_fns);
     }
 
 #ifndef NDEBUG
@@ -326,9 +330,9 @@ namespace fpnt {
 
       size_t field_idx = 0;
       for (auto& out_field : out_fields) {
-        for (auto& [str_fn, option] : vec_prep_fns_opts[field_idx]) {
-          auto prep_fn = loader.getPrepFn(str_fn);
-          prep_fn(option, *record_ptr, granularity, cnt_out_key, out_field);
+        for (auto& [prep_fn, option] : vec_prep_fns_opts[field_idx]) {
+          fpnt::PluginContext ctx(this, option, *record_ptr, granularity, cnt_out_key, out_field);
+          prep_fn(ctx);
         }
 
         if ((*record_ptr)[out_field].is_null()) {
@@ -382,9 +386,9 @@ namespace fpnt {
       }
     }
 
-    csv::CSVWriter<std::ostream>* stdout_writer = nullptr;
+    std::unique_ptr<csv::CSVWriter<std::ostream>> stdout_writer;
     if (print_stdout) {
-      stdout_writer = new csv::CSVWriter<std::ostream>(std::cout, false);
+      stdout_writer = std::make_unique<csv::CSVWriter<std::ostream>>(std::cout, false);
       *stdout_writer << (cur_map->getFields());
     }
 
@@ -401,7 +405,6 @@ namespace fpnt {
       csv_writer << row_vector;
       if (stdout_writer) *stdout_writer << row_vector;
     }
-    if (stdout_writer) delete stdout_writer;
   }
 
   size_t Dispatcher::get_idx(std::string key, std::string from, std::string to) {  // v0.3
@@ -669,6 +672,52 @@ namespace fpnt {
       std::cout << std::endl;
     }
     std::cout << std::endl;
+  }
+
+  PluginContext::PluginContext(Dispatcher* d, const std::string& option, nlohmann::json& record,
+                               const std::string& granularity, const std::string& key,
+                               const std::string& field)
+      : d(d), option(option), record(&record), granularity(granularity), key(key), field(field) {}
+
+  const std::string& PluginContext::getOption() const { return option; }
+  nlohmann::json& PluginContext::getRecord() const { return *record; }
+  const std::string& PluginContext::getGranularity() const { return granularity; }
+  const std::string& PluginContext::getKey() const { return key; }
+  const std::string& PluginContext::getField() const { return field; }
+
+  std::vector<std::string> PluginContext::getChildKeys() const {
+    return d->out_child_keys[granularity][key];
+  }
+
+  nlohmann::json& PluginContext::getChildRecord(const std::string& child_key) const {
+    std::string child_g = d->g_lvs[d->g_lv_idx[granularity] - 1];
+    return d->out[child_g][child_key];
+  }
+
+  size_t PluginContext::getIdx(std::string key, std::string from, std::string to) const {
+    return d->get_idx(key, from, to);
+  }
+  std::string PluginContext::getKey(std::string key, std::string from, std::string to) const {
+    return d->get_key(key, from, to);
+  }
+  std::vector<size_t> PluginContext::getIdxs(std::string key, std::string from, std::string to) const {
+    return d->get_idxs(key, from, to);
+  }
+  std::vector<std::string> PluginContext::getKeys(std::string key, std::string from, std::string to) const {
+    return d->get_keys(key, from, to);
+  }
+
+  std::vector<nlohmann::json>& PluginContext::getInPkts() const {
+    return d->in_pkts;
+  }
+  fpnt::TSharkMapper& PluginContext::getInMap() const {
+    return d->in_map;
+  }
+  std::unordered_map<std::string, std::unordered_map<std::string, size_t>>& PluginContext::getOutKey2Idx() const {
+    return d->out_key2idx;
+  }
+  nlohmann::json& PluginContext::getRecordByGranularity(const std::string& g, const std::string& k) const {
+    return d->out[g][k];
   }
 
 }  // namespace fpnt

@@ -111,12 +111,14 @@ namespace fpnt {
     }
 
     if (loader != nullptr) {
-      // TODO: Validate!
       auto fields = map.getFields();
       for (auto& field : fields) {
         auto prep_fn_list = map.getPrepFns(field);
         for (auto& [fn, opt] : prep_fn_list) {
-          loader->validate(fn);
+          if (!loader->validate(fn)) {
+            std::cerr << "CSVReader: Invalid or missing plugin function '" << fn << "' for field '" << field << "'" << std::endl;
+            exit(1);
+          }
         }
       }
     }
@@ -290,13 +292,19 @@ namespace fpnt {
       map.addField(field, name, desc, type, ver);
     }
 
+    // Free loaded dfref information to optimize memory usage as it is no longer needed
+    dfref_dirs.clear();
+    map.freeMemory();
+
     if (loader != nullptr) {
-      // TODO: Validate!
       auto fields = map.getFields();
       for (auto& field : fields) {
         auto prep_fn_list = map.getPrepFns(field);
         for (auto& [fn, opt] : prep_fn_list) {
-          loader->validate(fn);
+          if (!loader->validate(fn)) {
+            std::cerr << "TSharkCSVReader: Invalid or missing plugin function '" << fn << "' for field '" << field << "'" << std::endl;
+            exit(1);
+          }
         }
       }
     }
@@ -351,7 +359,7 @@ namespace fpnt {
           row_json[col_name] = row[col_name].get<std::string>();
         }
         row_json["idx"] = no_pkts++;  // Warning: internal state!
-        in_pkts.push_back(row_json);
+        in_pkts.push_back(std::move(row_json));
       }
 
 #ifndef NDEBUG

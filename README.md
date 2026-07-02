@@ -102,11 +102,22 @@ To execute `fpnt` executable file, the plugin file `libFPNT_PLUGINS.so` is requi
 ### Executing the `fpnt` executable file
 
 If you do not move the executable file, you can execute `fpnt` using the following command in the root directory of the repository:
-```
-build/_deps/fpnt-build/standalone/fpnt
+```bash
+build/_deps/fpnt-build/standalone/fpnt [OPTIONS]
 ```
 
-If you want to execute fpnt in a specific direcory, make sure `config.json` is available in the same directory and you must modify several directory/file paths in `config.json` appropriately.
+### Command-line Options
+
+`fpnt` supports several advanced command-line options. They allow you to override paths that would otherwise need to be configured inside `config.json`. This is highly useful when executing `fpnt` across different directories or using dynamic targets.
+
+* `-h`, `--help`: Print the help message and exit.
+* `-c`, `--configpath TEXT`: Path to the configuration JSON file.
+* `-i`, `--input_pcap TEXT`: Input pcap directory or file path (overrides `input_pcap_path` in `config.json`).
+* `-o`, `--output TEXT`: Output directory path (overrides `output_path` in `config.json`).
+* `-t`, `--output-type TEXT`: Output file type (Currently only `csv` is supported).
+* `-p`, `--plugins-path TEXT`: Plugins shared object file (`.so` file) path (overrides `plugins_path` in `config.json`).
+
+If you want to execute `fpnt` in a specific directory without specifying the options above, make sure `config.json` is available in the current directory and you must modify several directory/file paths in `config.json` appropriately.
 
 ## More on configurations
 

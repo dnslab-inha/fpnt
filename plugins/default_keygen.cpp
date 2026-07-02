@@ -5,14 +5,13 @@
 
 #include <cstring>
 
-#include "dispatcher_ptr.h"
+
 
 /** @brief Default key generator for Packet records;
  * just use its record creation order starting from 0
  *
  */
-const std::string genKey_pkt_default(const nlohmann::json& pkt, std::string& granularity,
-                                     std::string& key) {
+const std::string genKey_pkt_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   return std::to_string(pkt["idx"].get<size_t>());
 }
 
@@ -23,8 +22,7 @@ const std::string genKey_pkt_default(const nlohmann::json& pkt, std::string& gra
  * is appeared first (to identify well-known service port quickly) and if the port numbers are
  * the same, the host with smaller IP address is appeared first.
  */
-const std::string genKey_flow_default(const nlohmann::json& pkt, std::string& granularity,
-                                      std::string& key) {
+const std::string genKey_flow_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   std::string cur_key;
 
   std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
@@ -58,8 +56,8 @@ const std::string genKey_flow_default(const nlohmann::json& pkt, std::string& gr
 
   // end of Support for Protocol Name
 
-  std::string cur_src = pkt["_ws.col.def_src"].get<std::string>();
-  std::string cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
+  auto cur_src = pkt["_ws.col.def_src"].get<std::string>();
+  auto cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
 
   // std::cout << cur_src << "," << cur_dst << std::endl;
 
@@ -137,8 +135,7 @@ const std::string genKey_flow_default(const nlohmann::json& pkt, std::string& gr
  * string is "srcIP:srcPort,dstIP:dstPort/protocol".
  *
  */
-const std::string genKey_flow_default_5tuple(const nlohmann::json& pkt, std::string& granularity,
-                                             std::string& key) {
+const std::string genKey_flow_default_5tuple(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   std::string cur_key;
 
   std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
@@ -173,8 +170,8 @@ const std::string genKey_flow_default_5tuple(const nlohmann::json& pkt, std::str
 
   // end of Support for Protocol Name
 
-  std::string cur_src = pkt["_ws.col.def_src"].get<std::string>();
-  std::string cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
+  auto cur_src = pkt["_ws.col.def_src"].get<std::string>();
+  auto cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
 
   // std::cout << cur_src << "," << cur_dst << std::endl;
 
@@ -267,8 +264,7 @@ const std::string genKey_flow_default_5tuple(const nlohmann::json& pkt, std::str
  * address is appeared first.
  *
  */
-const std::string genKey_flow_ipv4(const nlohmann::json& pkt, std::string& granularity,
-                                   std::string& key) {
+const std::string genKey_flow_ipv4(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   std::string cur_key;
 
   std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
@@ -305,12 +301,12 @@ const std::string genKey_flow_ipv4(const nlohmann::json& pkt, std::string& granu
 
   // end of Support for Protocol Name
 
-  std::string cur_src = pkt["ip.src"].get<std::string>();
-  std::string cur_dst = pkt["ip.dst"].get<std::string>();
+  auto cur_src = pkt["ip.src"].get<std::string>();
+  auto cur_dst = pkt["ip.dst"].get<std::string>();
 
   // if IPv6 address is given... ;<
   if (cur_src + cur_dst == "") {
-    return std::to_string(fpnt::d->file_idx)
+    return std::to_string(file_idx)
            + "_NonIPv4";  // the only location to use dispatcher's file_idx
   }
 
@@ -362,8 +358,7 @@ const std::string genKey_flow_ipv4(const nlohmann::json& pkt, std::string& granu
  * _ws.col.def_dst, tcp.srcport or udp.srcport, tcp.dstport or udp.dstport); suitable for
  * encrypted traffic analysis such as TLS or QUIC; key string is "srcIP:srcPort,dstIP:dstPort".
  */
-const std::string genKey_flow_directional_default(const nlohmann::json& pkt,
-                                                  std::string& granularity, std::string& key) {
+const std::string genKey_flow_directional_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   std::string cur_key;
 
   std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
@@ -397,8 +392,8 @@ const std::string genKey_flow_directional_default(const nlohmann::json& pkt,
 
   // end of Support for Protocol Name
 
-  std::string cur_src = pkt["_ws.col.def_src"].get<std::string>();
-  std::string cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
+  auto cur_src = pkt["_ws.col.def_src"].get<std::string>();
+  auto cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
 
   // fix a bug in tshark
   // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
@@ -428,8 +423,7 @@ const std::string genKey_flow_directional_default(const nlohmann::json& pkt,
  * IPv4 traffic analysis only; key string is "srcIP:srcPort,dstIP:dstPort".
  * non-IPv4 packets will have flow key string "{file_idx}_NonIPv4".
  */
-const std::string genKey_flow_directional_ipv4(const nlohmann::json& pkt, std::string& granularity,
-                                               std::string& key) {
+const std::string genKey_flow_directional_ipv4(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   std::string cur_key;
 
   std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
@@ -466,12 +460,12 @@ const std::string genKey_flow_directional_ipv4(const nlohmann::json& pkt, std::s
 
   // end of Support for Protocol Name
 
-  std::string cur_src = pkt["ip.src"].get<std::string>();
-  std::string cur_dst = pkt["ip.dst"].get<std::string>();
+  auto cur_src = pkt["ip.src"].get<std::string>();
+  auto cur_dst = pkt["ip.dst"].get<std::string>();
 
   // if IPv6 address is given... ;<
   if (cur_src + cur_dst == "") {
-    return std::to_string(fpnt::d->file_idx)
+    return std::to_string(file_idx)
            + "_NonIPv4";  // the only location to use dispatcher's file_idx
   }
 
@@ -503,9 +497,7 @@ const std::string genKey_flow_directional_ipv4(const nlohmann::json& pkt, std::s
  * protocol); suitable for encrypted traffic analysis for conventional TCP/IP protocol; key string
  * is "srcIP:srcPort,dstIP:dstPort/protocol".
  */
-const std::string genKey_flow_directional_default_5tuple(const nlohmann::json& pkt,
-                                                         std::string& granularity,
-                                                         std::string& key) {
+const std::string genKey_flow_directional_default_5tuple(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   std::string cur_key;
 
   std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
@@ -539,8 +531,8 @@ const std::string genKey_flow_directional_default_5tuple(const nlohmann::json& p
 
   // end of Support for Protocol Name
 
-  std::string cur_src = pkt["_ws.col.def_src"].get<std::string>();
-  std::string cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
+  auto cur_src = pkt["_ws.col.def_src"].get<std::string>();
+  auto cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
 
   // fix a bug in tshark
   // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
@@ -582,8 +574,7 @@ const std::string genKey_flow_directional_default_5tuple(const nlohmann::json& p
  * IPv4 traffic analysis only; key string is "srcIP:srcPort,dstIP:dstPort".
  * non-IPv4 packets will have flow key string "{file_idx}_NonIPv4".
  */
-const std::string genKey_flow_directional_ipv4_5tuple(const nlohmann::json& pkt,
-                                                      std::string& granularity, std::string& key) {
+const std::string genKey_flow_directional_ipv4_5tuple(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   std::string cur_key;
 
   std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
@@ -620,12 +611,12 @@ const std::string genKey_flow_directional_ipv4_5tuple(const nlohmann::json& pkt,
 
   // end of Support for Protocol Name
 
-  std::string cur_src = pkt["ip.src"].get<std::string>();
-  std::string cur_dst = pkt["ip.dst"].get<std::string>();
+  auto cur_src = pkt["ip.src"].get<std::string>();
+  auto cur_dst = pkt["ip.dst"].get<std::string>();
 
   // if IPv6 address is given... ;<
   if (cur_src + cur_dst == "") {
-    return std::to_string(fpnt::d->file_idx)
+    return std::to_string(file_idx)
            + "_NonIPv4";  // the only location to use dispatcher's file_idx
   }
 
@@ -669,12 +660,11 @@ const std::string genKey_flow_directional_ipv4_5tuple(const nlohmann::json& pkt,
  * appeared first
  *
  */
-const std::string genKey_flowset_default(const nlohmann::json& pkt, std::string& granularity,
-                                         std::string& key) {
+const std::string genKey_flowset_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   std::string cur_key;
 
-  std::string cur_src = pkt["_ws.col.def_src"].get<std::string>();
-  std::string cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
+  auto cur_src = pkt["_ws.col.def_src"].get<std::string>();
+  auto cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
 
   // fix a bug in tshark
   // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
@@ -726,16 +716,15 @@ const std::string genKey_flowset_default(const nlohmann::json& pkt, std::string&
  * analysis such as TLS or QUIC; note that the host with smaller IP address is appeared first;
  * non-IPv4 packets will have flow key string "{file_idx}_NonIPv4".
  */
-const std::string genKey_flowset_ipv4(const nlohmann::json& pkt, std::string& granularity,
-                                      std::string& key) {
+const std::string genKey_flowset_ipv4(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   std::string cur_key;
 
-  std::string cur_src = pkt["ip.src"].get<std::string>();
-  std::string cur_dst = pkt["ip.dst"].get<std::string>();
+  auto cur_src = pkt["ip.src"].get<std::string>();
+  auto cur_dst = pkt["ip.dst"].get<std::string>();
 
   // if NonIPv4 address is given... ;<
   if (cur_src + cur_dst == "") {
-    return std::to_string(fpnt::d->file_idx)
+    return std::to_string(file_idx)
            + "_NonIPv4";  // the only location to use dispatcher's file_idx
   }
 
@@ -773,13 +762,11 @@ const std::string genKey_flowset_ipv4(const nlohmann::json& pkt, std::string& gr
  * 802.11 frame
  *
  */
-const std::string genKey_pkt_cbr(const nlohmann::json& pkt, std::string& granularity,
-                                 std::string& key) {
+const std::string genKey_pkt_cbr(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   return std::to_string(pkt["idx"].get<size_t>()) + "_" + pkt["wlan.ra"].get<std::string>() + "_"
          + pkt["wlan.ta"].get<std::string>();
 }
 
-const std::string genKey_protocol_default(const nlohmann::json& pkt, std::string& granularity,
-                                          std::string& key) {
+const std::string genKey_protocol_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
   return pkt["_ws.col.protocol"].get<std::string>();
 }

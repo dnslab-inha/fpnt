@@ -9,10 +9,11 @@
 #include <string>
 #include <vector>
 
+#include <fpnt/plugin_context.h>
+
 namespace fpnt {
-  typedef void (*fnptr_PrepFn)(const std::string&, nlohmann::json&, std::string&,
-                               const std::string&, const std::string&);
-  typedef const std::string (*fnptr_genKeyFn)(const nlohmann::json&, std::string&, std::string&);
+  typedef void (*fnptr_PrepFn)(fpnt::PluginContext&);
+  typedef const std::string (*fnptr_genKeyFn)(const nlohmann::json&, std::string&, std::string&, size_t);
 
   class Loader {
   private:
@@ -26,7 +27,7 @@ namespace fpnt {
 
     ~Loader() { dlclose(handle); }
 
-    void* getDispatcherPtr();
+
 
     fnptr_PrepFn getPrepFn(std::string& str_fn);
 

@@ -28,6 +28,7 @@ namespace fpnt {
     std::vector<std::string> getFields() const;
 
     void print();
+    virtual void freeMemory();
     std::vector<std::pair<std::string, std::string> > getPrepFns(const std::string& field);
     void setPrepFns(std::string field, std::string str_prep_fns, std::string str_options);
     size_t addField(std::string field, std::string name, std::string desc = "",
@@ -45,6 +46,7 @@ namespace fpnt {
                     std::string type = "", std::string ver = "");
 
     void print();
+    void freeMemory() override;
   };
 
 }  // namespace fpnt

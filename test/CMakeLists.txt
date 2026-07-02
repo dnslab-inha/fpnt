@@ -29,6 +29,11 @@ add_executable(${PROJECT_NAME} ${sources})
 target_link_libraries(${PROJECT_NAME} doctest::doctest FPNT)
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    FPNT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
+    FPNT_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/.."
+)
+
 # enable compiler warnings
 if(NOT TEST_INSTALLED_VERSION)
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_CXX_COMPILER_ID MATCHES "GNU")
@@ -43,13 +48,14 @@ endif()
 
 enable_testing()
 
-add_test(NAME FPNT_SmokeTest COMMAND fpnt_bin --help)
+add_test(NAME FPNT_SmokeTest COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/run_with_time.sh $<TARGET_FILE:fpnt_bin> --help)
 
 # Note: doctest and similar testing frameworks can automatically configure CMake tests. For other
 # testing frameworks add the tests target instead: add_test(NAME ${PROJECT_NAME} COMMAND
 # ${PROJECT_NAME})
 
 include(${doctest_SOURCE_DIR}/scripts/cmake/doctest.cmake)
+set_target_properties(${PROJECT_NAME} PROPERTIES CROSSCOMPILING_EMULATOR "bash;${CMAKE_CURRENT_SOURCE_DIR}/run_with_time.sh")
 doctest_discover_tests(${PROJECT_NAME})
 
 # ---- code coverage ----
