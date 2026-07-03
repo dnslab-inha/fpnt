@@ -52,8 +52,10 @@ namespace fpnt {
         // It's a function
         if (name.rfind("P_", 0) == 0) {
           map_fns[name] = NULL;
-        } else if (name.rfind("genKey_", 0) == 0) {
-          map_genkeyfns[name] = NULL;
+        } else if (name.rfind("create_genKey_", 0) == 0) {
+          std::string str_fn
+              = name.substr(7);  // "create_" is 7 chars. So "create_genKey_xxx" -> "genKey_xxx"
+          map_genkeyfns[str_fn] = NULL;
         }
       }
 #elif defined(__linux__)
@@ -85,71 +87,72 @@ namespace fpnt {
           std::string str = &strtab[sym->st_name];
           if (str.rfind("P_", 0) == 0) {
             map_fns[str] = NULL;
-          } else if (str.rfind("genKey_", 0) == 0) {
-            map_genkeyfns[str] = NULL;
+          } else if (str.rfind("create_genKey_", 0) == 0) {
+            std::string str_fn = str.substr(7);
+            map_genkeyfns[str_fn] = NULL;
           }
         }
       }
     }
 #endif
-  }
-
-  bool Loader::validate(const std::string &str_fn) {
-    if (str_fn.rfind("P_", 0) == 0) {
-      return map_fns.contains(str_fn);
-    } else if (str_fn.rfind("genKey_", 0) == 0) {
-      return map_genkeyfns.contains(str_fn);
-    }
-    return false;
-  }
-
-
-
-  fnptr_PrepFn Loader::getPrepFn(std::string &str_fn) {
-    fnptr_PrepFn fnptr = NULL;
-    if (map_fns.contains(str_fn) && map_fns[str_fn] != NULL) return map_fns[str_fn];
-
-    // if the fnptr is not available
-    if (str_fn.substr(0, 2) != "P_") {
-      std::cerr << "getPrepFn: the given string does not satisfy the prefix rule 'P_'!"
-                << std::endl;
-      exit(1);
     }
 
-    char *error;
-    void *new_fnptr = dlsym(handle, str_fn.c_str());
-    if ((error = dlerror()) != NULL) {
-      std::cerr << error << std::endl;
-      exit(1);
+    bool Loader::validate(const std::string &str_fn) {
+      if (str_fn.rfind("P_", 0) == 0) {
+        return map_fns.contains(str_fn);
+      } else if (str_fn.rfind("genKey_", 0) == 0) {
+        return map_genkeyfns.contains(str_fn);
+      }
+      return false;
     }
 
-    fnptr = (fnptr_PrepFn)new_fnptr;
-    map_fns[str_fn] = fnptr;
+    fnptr_PrepFn Loader::getPrepFn(std::string & str_fn) {
+      fnptr_PrepFn fnptr = NULL;
+      if (map_fns.contains(str_fn) && map_fns[str_fn] != NULL) return map_fns[str_fn];
 
-    return fnptr;
-  }
+      // if the fnptr is not available
+      if (str_fn.substr(0, 2) != "P_") {
+        std::cerr << "getPrepFn: the given string does not satisfy the prefix rule 'P_'!"
+                  << std::endl;
+        exit(1);
+      }
 
-  fnptr_genKeyFn Loader::getGenKeyFn(const std::string &str_fn) {
-    fnptr_genKeyFn fnptr = NULL;
-    if (map_genkeyfns.contains(str_fn) && map_genkeyfns[str_fn] != NULL)
-      return map_genkeyfns[str_fn];
+      char *error;
+      void *new_fnptr = dlsym(handle, str_fn.c_str());
+      if ((error = dlerror()) != NULL) {
+        std::cerr << error << std::endl;
+        exit(1);
+      }
 
-    if (str_fn.substr(0, 7) != "genKey_") {
-      std::cerr << "getPrepFn: the given string does not satisfy the prefix rule 'genKey_'!"
-                << std::endl;
+      fnptr = (fnptr_PrepFn)new_fnptr;
+      map_fns[str_fn] = fnptr;
+
+      return fnptr;
     }
 
-    char *error;
-    void *new_fnptr = dlsym(handle, str_fn.c_str());
-    if ((error = dlerror()) != NULL) {
-      std::cerr << error << std::endl;
-      exit(1);
+    KeyGenerator *Loader::getGenKeyFn(const std::string &str_fn) {
+      if (map_genkeyfns.contains(str_fn) && map_genkeyfns[str_fn] != NULL)
+        return map_genkeyfns[str_fn];
+
+      if (str_fn.substr(0, 7) != "genKey_") {
+        std::cerr << "getGenKeyFn: the given string does not satisfy the prefix rule 'genKey_'!"
+                  << std::endl;
+      }
+
+      std::string factory_fn_name = "create_" + str_fn;
+
+      char *error;
+      void *new_fnptr = dlsym(handle, factory_fn_name.c_str());
+      if ((error = dlerror()) != NULL) {
+        std::cerr << error << std::endl;
+        exit(1);
+      }
+
+      fnptr_createKeyGenFn factory = (fnptr_createKeyGenFn)new_fnptr;
+      KeyGenerator *keygen = factory();
+      map_genkeyfns[str_fn] = keygen;
+
+      return keygen;
     }
 
-    fnptr = (fnptr_genKeyFn)new_fnptr;
-    map_genkeyfns[str_fn] = fnptr;
-
-    return fnptr;
-  }
-
-}  // namespace fpnt
+  }  // namespace fpnt

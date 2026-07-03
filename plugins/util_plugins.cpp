@@ -26,28 +26,40 @@ std::string vectorToString(const std::vector<double>& vec) {
  * Converts a comma-separated string into a vector of doubles.
  * This is the inverse operation of vectorToString.
  */
-std::vector<double> stringToVector(const std::string& str) {
-  std::vector<double> result;
+#include <charconv>
+#include <string_view>
 
-  // Handle the case where the input string is empty
+std::vector<double> stringToVector(std::string_view str) {
+  std::vector<double> result;
   if (str.empty()) {
     return result;
   }
 
-  std::stringstream ss(str);
-  std::string item;
-
-  // Split the string using the comma (',') as a delimiter
-  while (std::getline(ss, item, ',')) {
-    try {
-      // Convert string token to double and add to vector
-      // std::stod handles leading/trailing whitespace automatically
-      result.push_back(std::stod(item));
-    } catch (const std::exception& e) {
-      // Handle cases where conversion fails (e.g., non-numeric data)
-      std::cerr << "Conversion error: " << e.what() << std::endl;
+  size_t start = 0;
+  while (start < str.size()) {
+    size_t end = str.find(',', start);
+    if (end == std::string_view::npos) {
+      end = str.size();
     }
-  }
 
+    // std::from_chars requires trimming spaces for best results, but assuming csv values don't have
+    // leading spaces to strictly match previous stod behavior, we can optionally skip leading
+    // whitespace if needed.
+    size_t num_start = start;
+    while (num_start < end && std::isspace(static_cast<unsigned char>(str[num_start]))) {
+      num_start++;
+    }
+
+    if (num_start < end) {
+      double val = 0.0;
+      auto [ptr, ec] = std::from_chars(str.data() + num_start, str.data() + end, val);
+      if (ec == std::errc()) {
+        result.push_back(val);
+      } else {
+        std::cerr << "Conversion error at index " << num_start << "\n";
+      }
+    }
+    start = end + 1;
+  }
   return result;
 }

@@ -78,7 +78,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC csv)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   target_link_libraries(${PROJECT_NAME} PRIVATE gcov)
 endif()
-target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PStreams_SOURCE_DIR}>)
+
 target_include_directories(
   ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
                          $<INSTALL_INTERFACE:include>

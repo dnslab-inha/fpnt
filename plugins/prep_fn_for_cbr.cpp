@@ -1,16 +1,19 @@
+#include <fpnt/plugin_context.h>
+
+#include <charconv>
 #include <nlohmann/json.hpp>
 #include <regex>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 
 #include "default_keygen.h"
-#include <fpnt/plugin_context.h>
 #include "util_plugins.h"
 
 extern "C" void P_hex2dec(fpnt::PluginContext& ctx) {
   std::stringstream ss;
-  ss << std::hex << ctx.getRecord()[ctx.getField()].get<std::string>();
+  ss << std::hex << ctx.getRecord()[ctx.getField()].get_ref<const std::string&>();
   unsigned int x;
   ss >> x;
   ctx.getRecord()[ctx.getField()] = std::to_string(x);
@@ -18,7 +21,7 @@ extern "C" void P_hex2dec(fpnt::PluginContext& ctx) {
 
 extern "C" void P_plus(fpnt::PluginContext& ctx) {
   std::stringstream ss;
-  ss << ctx.getRecord()[ctx.getField()].get<std::string>();
+  ss << ctx.getRecord()[ctx.getField()].get_ref<const std::string&>();
   unsigned int x;
   ss >> x;
   x += std::stoi(ctx.getOption());
@@ -140,7 +143,8 @@ extern "C" void P_fast_bfm_fill(fpnt::PluginContext& ctx) {
       // Create final mapping ctx.getKey(): "SCIDX: -122,φ11"
       std::string final_map_key = "SCIDX: " + scidx_str + "," + param_key;
 
-      // std::cout << "ctx.getKey(): " << ctx.getKey() << " ctx.getField() " << final_map_key << std::endl;
+      // std::cout << "ctx.getKey(): " << ctx.getKey() << " ctx.getField() " << final_map_key <<
+      // std::endl;
 
       // 6. Save data
       // ctx.getRecordByGranularity("bfm", ctx.getKey())["SCIDX: -122,φ11"] = 41;
@@ -152,7 +156,8 @@ extern "C" void P_bfm_fill(fpnt::PluginContext& ctx) {
   // std::cout << "P_bfm_find: "  << ctx.getField() << ", " << ctx.getKey() << std::endl;
   const std::string scidx_fieldname = "wlan.vht.compressed_beamforming_report.scidx";
 
-  const std::string& cnt = ctx.getRecordByGranularity("pkt", ctx.getKey())[scidx_fieldname].get<std::string>();
+  const std::string& cnt = ctx.getRecordByGranularity("pkt", ctx.getKey())[scidx_fieldname]
+                               .get_ref<const std::string&>();
 
   // ctx.getOption() parsing: extract "SCIDX, Parameter_Name, Index"
   // for example: ctx.getOption() = "-122,phi,11"
@@ -177,8 +182,8 @@ extern "C" void P_bfm_fill(fpnt::PluginContext& ctx) {
   const std::string target_param_name = option_parts[1];  // phi or psi
   const std::string target_param_idx = option_parts[2];   // 11, 21, ...
 
-  // target_param_key: the ctx.getKey() to find in the string 'cnt' (e.g.,: φ11); convert alphabet (phi -> φ,
-  // psi -> ψ)
+  // target_param_key: the ctx.getKey() to find in the string 'cnt' (e.g.,: φ11); convert alphabet
+  // (phi -> φ, psi -> ψ)
   std::string target_param_key;
   if (target_param_name == "phi") {  // φ (U+03C6)
     target_param_key = "\u03C6" + target_param_idx;

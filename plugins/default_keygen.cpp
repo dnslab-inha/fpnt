@@ -3,17 +3,39 @@
 #include <arpa/inet.h>
 #include <fmt/core.h>
 
+#include <charconv>
 #include <cstring>
+#include <string>
+#include <string_view>
 
-
+namespace {
+  inline int parse_port(std::string_view s) {
+    int port = 0;
+    if (!s.empty()) {
+      std::from_chars(s.data(), s.data() + s.size(), port);
+    }
+    return port;
+  }
+}  // namespace
 
 /** @brief Default key generator for Packet records;
  * just use its record creation order starting from 0
  *
  */
-const std::string genKey_pkt_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  return std::to_string(pkt["idx"].get<size_t>());
-}
+class GenKey_pkt_default : public fpnt::KeyGenerator {
+public:
+  GenKey_pkt_default() : fpnt::KeyGenerator({"idx"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
+
+    nlohmann::json key_data;
+    key_data["__" + granularity + "_key"] = std::to_string(pkt["idx"].get<size_t>());
+    return key_data;
+  }
+};
+extern "C" fpnt::KeyGenerator* create_genKey_pkt_default() { return new GenKey_pkt_default(); }
 
 /** @brief Default key generator for "bidirectional" Flow records assuming only TCP/IP, UDP/IP
  * datagrams are available for efficient generation; use "4 tuple" fields (_ws.col.def_src,
@@ -22,109 +44,100 @@ const std::string genKey_pkt_default(const nlohmann::json& pkt, std::string& gra
  * is appeared first (to identify well-known service port quickly) and if the port numbers are
  * the same, the host with smaller IP address is appeared first.
  */
-const std::string genKey_flow_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  std::string cur_key;
+class GenKey_flow_default : public fpnt::KeyGenerator {
+public:
+  GenKey_flow_default()
+      : fpnt::KeyGenerator({"idx", "tcp.srcport", "_ws.col.def_dst", "udp.srcport", "udp.dstport",
+                            "_ws.col.def_src", "tcp.dstport"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
 
-  std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
-  std::string cur_dstport = pkt["tcp.dstport"].get<std::string>();
+    std::string cur_key;
+    nlohmann::json key_data;
 
-  // Support for Protocol Name
-  std::string protocol_name = "TCP";
-
-  if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-    protocol_name = "UDP";
-
-    // Previously, when udp.srcport or udp.dstport is null, it was treated as an error to indicate
-    // user to check fpnt is correctly configured. However, in some cases, UDP port information
-    // might be missing, especially when analyzing certain types of traffic. To this end, we will
-    // set both ports to "0" when they are missing.
-    if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
+    std::string_view cur_srcport;
+    std::string_view cur_dstport;
+    if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
+        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+    } else if (pkt.contains("udp.srcport") && !pkt["udp.srcport"].is_null()
+               && !pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+    } else {
       cur_srcport = "0";
       cur_dstport = "0";
     }
 
-    cur_srcport = pkt["udp.srcport"].get<std::string>();
-    cur_dstport = pkt["udp.dstport"].get<std::string>();
+    std::string_view cur_src = pkt["_ws.col.def_src"].get_ref<const std::string&>();
+    std::string_view cur_dst = pkt["_ws.col.def_dst"].get_ref<const std::string&>();
 
-    if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-      protocol_name = "etc";
-
-      cur_srcport = "0";
-      cur_dstport = "0";
+    size_t l;
+    if ((l = cur_src.find(',')) != std::string_view::npos) {
+      cur_src = cur_src.substr(0, l);
     }
-  }
-
-  // end of Support for Protocol Name
-
-  auto cur_src = pkt["_ws.col.def_src"].get<std::string>();
-  auto cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
-
-  // std::cout << cur_src << "," << cur_dst << std::endl;
-
-  // fix a bug in tshark
-  // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
-  // first part of the address
-
-  size_t l;
-  //	string cur_src_backup = "", cur_dst_backup = "";
-  if ((l = cur_src.find(',')) != std::string::npos) {
-    // cout << "uuu...." << cur_src << endl;
-    //		cur_src_backup = cur_src;
-    cur_src = cur_src.substr(0, l);
-  }
-  if ((l = cur_dst.find(',')) != std::string::npos) {
-    // cout << "uuu....dst..." << cur_dst << endl;
-    //		cur_dst_backup = cur_dst;
-    cur_dst = cur_dst.substr(0, l);
-  }
-
-  // flow key generation policy:
-  // We assume that smaller port number address is the server;
-  // if the port number address is the same (found in many UDP cases),
-  //    we assume that the smaller IP address is the server
-  // We use the client-first, server-second pair
-
-  int keycomp = atoi(cur_srcport.c_str()) - atoi(cur_dstport.c_str());
-  if (keycomp == 0)  // the port number same case
-  {
-    bool src_greater_equal = false;
-    if (cur_src.find(':') != std::string::npos) {  // IPv6
-      struct in6_addr src_n, dst_n;
-      if (inet_pton(AF_INET6, cur_src.c_str(), &src_n) != 1
-          || inet_pton(AF_INET6, cur_dst.c_str(), &dst_n) != 1) {
-        std::cerr << "Invalid IPv6 address" << std::endl;
-        std::cerr << pkt["idx"].get<std::string>() << ","
-                  << pkt["_ws.col.def_src"].get<std::string>() << ","
-                  << pkt["_ws.col.def_dst"].get<std::string>() << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
-    } else {  // IPv4
-      struct in_addr src_n, dst_n;
-      if (inet_pton(AF_INET, cur_src.c_str(), &src_n) != 1
-          || inet_pton(AF_INET, cur_dst.c_str(), &dst_n) != 1) {
-        std::cerr << "Invalid IPv4 address" << std::endl;
-        std::cerr << pkt["idx"].get<std::string>() << ","
-                  << pkt["_ws.col.def_src"].get<std::string>() << ","
-                  << pkt["_ws.col.def_dst"].get<std::string>() << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      // Compare in network byte order (Big Endian)
-      if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
+    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+      cur_dst = cur_dst.substr(0, l);
     }
 
-    if (src_greater_equal)  // dst_n is the server
+    // flow key generation policy:
+    // We assume that smaller port number address is the server;
+    // if the port number address is the same (found in many UDP cases),
+    //    we assume that the smaller IP address is the server
+    // We use the client-first, server-second pair
+
+    int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
+    if (keycomp == 0)  // the port number same case
+    {
+      bool src_greater_equal = false;
+      if (cur_src.find(':') != std::string::npos) {  // IPv6
+        struct in6_addr src_n, dst_n;
+        if (inet_pton(AF_INET6, std::string(cur_src).c_str(), &src_n) != 1
+            || inet_pton(AF_INET6, std::string(cur_dst).c_str(), &dst_n) != 1) {
+          std::cerr << "Invalid IPv6 address" << std::endl;
+          std::cerr << pkt["idx"].get_ref<const std::string&>() << ","
+                    << pkt["_ws.col.def_src"].get_ref<const std::string&>() << ","
+                    << pkt["_ws.col.def_dst"].get_ref<const std::string&>() << std::endl;
+          exit(EXIT_FAILURE);
+        }
+        if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
+      } else {  // IPv4
+        struct in_addr src_n, dst_n;
+        if (inet_pton(AF_INET, std::string(cur_src).c_str(), &src_n) != 1
+            || inet_pton(AF_INET, std::string(cur_dst).c_str(), &dst_n) != 1) {
+          std::cerr << "Invalid IPv4 address" << std::endl;
+          std::cerr << pkt["idx"].get_ref<const std::string&>() << ","
+                    << pkt["_ws.col.def_src"].get_ref<const std::string&>() << ","
+                    << pkt["_ws.col.def_dst"].get_ref<const std::string&>() << std::endl;
+          exit(EXIT_FAILURE);
+        }
+        // Compare in network byte order (Big Endian)
+        if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
+      }
+
+      if (src_greater_equal) {  // dst_n is the server
+        cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
+        key_data["__dir"] = "+1";
+      } else {  // dst_n is the client
+        cur_key = fmt::format("{2}:{3},{0}:{1}", cur_src, cur_srcport, cur_dst, cur_dstport);
+        key_data["__dir"] = "-1";
+      }
+    } else if (keycomp > 0) {  // srcport > dstport                   dstport is the server
       cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
-    else  // dst_n is the client
+      key_data["__dir"] = "+1";
+    } else {  // srcport < dstport                   dstport is the client
       cur_key = fmt::format("{2}:{3},{0}:{1}", cur_src, cur_srcport, cur_dst, cur_dstport);
-  } else if (keycomp > 0) {  // srcport > dstport                   dstport is the server
-    cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
-  } else {  // srcport < dstport                   dstport is the client
-    cur_key = fmt::format("{2}:{3},{0}:{1}", cur_src, cur_srcport, cur_dst, cur_dstport);
-  }
+      key_data["__dir"] = "-1";
+    }
 
-  return cur_key;
-}
+    key_data["__" + granularity + "_key"] = cur_key;
+    return key_data;
+  }
+};
+extern "C" fpnt::KeyGenerator* create_genKey_flow_default() { return new GenKey_flow_default(); }
 
 /** @brief Default key generator for "bidirectional" Flow records assuming only TCP/IP, UDP/IP
  * datagrams are available for efficient generation; use the standard "5 tuple" fields
@@ -135,124 +148,115 @@ const std::string genKey_flow_default(const nlohmann::json& pkt, std::string& gr
  * string is "srcIP:srcPort,dstIP:dstPort/protocol".
  *
  */
-const std::string genKey_flow_default_5tuple(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  std::string cur_key;
+class GenKey_flow_default_5tuple : public fpnt::KeyGenerator {
+public:
+  GenKey_flow_default_5tuple()
+      : fpnt::KeyGenerator({"idx", "ipv6.nxt", "tcp.srcport", "_ws.col.def_dst", "ip.proto",
+                            "udp.srcport", "udp.dstport", "_ws.col.def_src", "tcp.dstport"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
 
-  std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
-  std::string cur_dstport = pkt["tcp.dstport"].get<std::string>();
+    std::string cur_key;
+    nlohmann::json key_data;
 
-  // Support for Protocol Name; however, currently this variable is not used.
-  std::string protocol_name = "TCP";
-
-  // When TCP ports are missing, check UDP ports
-  if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-    protocol_name = "UDP";  // We assume UDP protocol
-
-    // Previously, when udp.srcport or udp.dstport is null, it was treated as an error to indicate
-    // user to check fpnt is correctly configured. However, in some cases, UDP port information
-    // might be missing, especially when analyzing certain types of traffic. To this end, we will
-    // set both ports to "0" when they are missing.
-    if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
+    std::string_view cur_srcport;
+    std::string_view cur_dstport;
+    if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
+        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+    } else if (pkt.contains("udp.srcport") && !pkt["udp.srcport"].is_null()
+               && !pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+    } else {
       cur_srcport = "0";
       cur_dstport = "0";
     }
 
-    cur_srcport = pkt["udp.srcport"].get<std::string>();
-    cur_dstport = pkt["udp.dstport"].get<std::string>();
+    std::string_view cur_src = pkt["_ws.col.def_src"].get_ref<const std::string&>();
+    std::string_view cur_dst = pkt["_ws.col.def_dst"].get_ref<const std::string&>();
 
-    if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-      protocol_name = "etc";  // e.g., ICMP, ...
-
-      cur_srcport = "0";
-      cur_dstport = "0";
+    size_t l;
+    if ((l = cur_src.find(',')) != std::string_view::npos) {
+      cur_src = cur_src.substr(0, l);
     }
-  }
-
-  // end of Support for Protocol Name
-
-  auto cur_src = pkt["_ws.col.def_src"].get<std::string>();
-  auto cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
-
-  // std::cout << cur_src << "," << cur_dst << std::endl;
-
-  // fix a bug in tshark
-  // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
-  // first part of the address
-
-  size_t l;
-  //	string cur_src_backup = "", cur_dst_backup = "";
-  if ((l = cur_src.find(',')) != std::string::npos) {
-    // cout << "uuu...." << cur_src << endl;
-    //		cur_src_backup = cur_src;
-    cur_src = cur_src.substr(0, l);
-  }
-  if ((l = cur_dst.find(',')) != std::string::npos) {
-    // cout << "uuu....dst..." << cur_dst << endl;
-    //		cur_dst_backup = cur_dst;
-    cur_dst = cur_dst.substr(0, l);
-  }
-
-  // flow key generation policy:
-  // We assume that smaller port number address is the server;
-  // if the port number address is the same (found in many UDP cases),
-  //    we assume that the smaller IP address is the server
-  // We use the client-first, server-second pair
-
-  std::string ip_proto = pkt["ip.proto"].get<std::string>();
-
-  if (ip_proto.compare("") == 0) {
-    std::string ipv6_nxt = pkt["ipv6.nxt"].get<std::string>();
-    ip_proto = ipv6_nxt;
-  }
-
-  if ((l = ip_proto.find(',')) != std::string::npos) {
-    ip_proto = ip_proto.substr(0, l);
-  }
-
-  int keycomp = atoi(cur_srcport.c_str()) - atoi(cur_dstport.c_str());
-  if (keycomp == 0)  // the port number same case
-  {
-    bool src_greater_equal = false;
-    if (cur_src.find(':') != std::string::npos) {  // IPv6
-      struct in6_addr src_n, dst_n;
-      if (inet_pton(AF_INET6, cur_src.c_str(), &src_n) != 1
-          || inet_pton(AF_INET6, cur_dst.c_str(), &dst_n) != 1) {
-        std::cerr << "Invalid IPv6 address" << std::endl;
-        std::cerr << pkt["idx"].get<std::string>() << ","
-                  << pkt["_ws.col.def_src"].get<std::string>() << ","
-                  << pkt["_ws.col.def_dst"].get<std::string>() << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
-    } else {  // IPv4
-      struct in_addr src_n, dst_n;
-      if (inet_pton(AF_INET, cur_src.c_str(), &src_n) != 1
-          || inet_pton(AF_INET, cur_dst.c_str(), &dst_n) != 1) {
-        std::cerr << "Invalid IPv4 address" << std::endl;
-        std::cerr << pkt["idx"].get<std::string>() << ","
-                  << pkt["_ws.col.def_src"].get<std::string>() << ","
-                  << pkt["_ws.col.def_dst"].get<std::string>() << std::endl;
-        exit(EXIT_FAILURE);
-      }
-      // Compare in network byte order (Big Endian)
-      if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
+    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+      cur_dst = cur_dst.substr(0, l);
     }
 
-    if (src_greater_equal)  // dst_n is the server
+    // flow key generation policy:
+    // We assume that smaller port number address is the server;
+    // if the port number address is the same (found in many UDP cases),
+    //    we assume that the smaller IP address is the server
+    // We use the client-first, server-second pair
+
+    std::string_view ip_proto = pkt["ip.proto"].get_ref<const std::string&>();
+
+    if (ip_proto.empty()) {
+      ip_proto = pkt["ipv6.nxt"].get_ref<const std::string&>();
+    }
+
+    if ((l = ip_proto.find(',')) != std::string_view::npos) {
+      ip_proto = ip_proto.substr(0, l);
+    }
+
+    int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
+    if (keycomp == 0)  // the port number same case
+    {
+      bool src_greater_equal = false;
+      if (cur_src.find(':') != std::string::npos) {  // IPv6
+        struct in6_addr src_n, dst_n;
+        if (inet_pton(AF_INET6, std::string(cur_src).c_str(), &src_n) != 1
+            || inet_pton(AF_INET6, std::string(cur_dst).c_str(), &dst_n) != 1) {
+          std::cerr << "Invalid IPv6 address" << std::endl;
+          std::cerr << pkt["idx"].get_ref<const std::string&>() << ","
+                    << pkt["_ws.col.def_src"].get_ref<const std::string&>() << ","
+                    << pkt["_ws.col.def_dst"].get_ref<const std::string&>() << std::endl;
+          exit(EXIT_FAILURE);
+        }
+        if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
+      } else {  // IPv4
+        struct in_addr src_n, dst_n;
+        if (inet_pton(AF_INET, std::string(cur_src).c_str(), &src_n) != 1
+            || inet_pton(AF_INET, std::string(cur_dst).c_str(), &dst_n) != 1) {
+          std::cerr << "Invalid IPv4 address" << std::endl;
+          std::cerr << pkt["idx"].get_ref<const std::string&>() << ","
+                    << pkt["_ws.col.def_src"].get_ref<const std::string&>() << ","
+                    << pkt["_ws.col.def_dst"].get_ref<const std::string&>() << std::endl;
+          exit(EXIT_FAILURE);
+        }
+        // Compare in network byte order (Big Endian)
+        if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
+      }
+
+      if (src_greater_equal) {  // dst_n is the server
+        cur_key = fmt::format("{0}:{1},{2}:{3}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport,
+                              ip_proto);
+        key_data["__dir"] = "+1";
+      } else {  // dst_n is the client
+        cur_key = fmt::format("{2}:{3},{0}:{1}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport,
+                              ip_proto);
+        key_data["__dir"] = "-1";
+      }
+    } else if (keycomp > 0) {  // srcport > dstport                   dstport is the server
       cur_key = fmt::format("{0}:{1},{2}:{3}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport,
                             ip_proto);
-    else  // dst_n is the client
+      key_data["__dir"] = "+1";
+    } else {  // srcport < dstport                   dstport is the client
       cur_key = fmt::format("{2}:{3},{0}:{1}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport,
                             ip_proto);
-  } else if (keycomp > 0) {  // srcport > dstport                   dstport is the server
-    cur_key
-        = fmt::format("{0}:{1},{2}:{3}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport, ip_proto);
-  } else {  // srcport < dstport                   dstport is the client
-    cur_key
-        = fmt::format("{2}:{3},{0}:{1}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport, ip_proto);
-  }
+      key_data["__dir"] = "-1";
+    }
 
-  return cur_key;
+    key_data["__" + granularity + "_key"] = cur_key;
+    return key_data;
+  }
+};
+extern "C" fpnt::KeyGenerator* create_genKey_flow_default_5tuple() {
+  return new GenKey_flow_default_5tuple();
 }
 
 /** @brief A key generator for "bidirectional" Flow records assuming only TCP/IPv4, UDP/IPv4
@@ -264,93 +268,201 @@ const std::string genKey_flow_default_5tuple(const nlohmann::json& pkt, std::str
  * address is appeared first.
  *
  */
-const std::string genKey_flow_ipv4(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  std::string cur_key;
+class GenKey_flow_ipv4 : public fpnt::KeyGenerator {
+public:
+  GenKey_flow_ipv4()
+      : fpnt::KeyGenerator(
+            {"ip.src", "tcp.srcport", "udp.srcport", "udp.dstport", "ip.dst", "tcp.dstport"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
 
-  std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
-  std::string cur_dstport = pkt["tcp.dstport"].get<std::string>();
+    std::string cur_key;
+    nlohmann::json key_data;
 
-  // Support for Protocol Name
-  std::string protocol_name = "TCP";
-
-  if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-    protocol_name = "UDP";
-
-    // When udp.srcport or udp.dstport is null, it was treated as an error to indicate user to check
-    // fpnt is correctly configured.
-    if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
-      std::cerr << "getPktKey: the corresponding input json does not collect udp.srcport and/or "
-                   "udp.dstport."
-                << std::endl;
-      std::cerr << "getPktKey: When tshark is used and UDP flows are needless, tshark must filter "
-                   "off UDP packets."
-                << std::endl;
-      exit(EXIT_FAILURE);
+    std::string_view cur_srcport;
+    std::string_view cur_dstport;
+    if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
+        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+    } else {
+      if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
+        std::cerr << "getPktKey: the corresponding input json does not collect udp.srcport and/or "
+                     "udp.dstport."
+                  << std::endl;
+        std::cerr
+            << "getPktKey: When tshark is used and UDP flows are needless, tshark must filter "
+               "off UDP packets."
+            << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      if (!pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
+        cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
+        cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+      } else {
+        cur_srcport = "0";
+        cur_dstport = "0";
+      }
     }
 
-    cur_srcport = pkt["udp.srcport"].get<std::string>();
-    cur_dstport = pkt["udp.dstport"].get<std::string>();
+    std::string_view cur_src = pkt["ip.src"].get_ref<const std::string&>();
+    std::string_view cur_dst = pkt["ip.dst"].get_ref<const std::string&>();
 
-    if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-      protocol_name = "etc";
-
-      cur_srcport = "0";
-      cur_dstport = "0";
+    // if IPv6 address is given... ;<
+    if (cur_src.empty() && cur_dst.empty()) {
+      key_data["__" + granularity + "_key"] = std::to_string(file_idx) + "_NonIPv4";
+      return key_data;  // the only location to use dispatcher's file_idx
     }
-  }
 
-  // end of Support for Protocol Name
-
-  auto cur_src = pkt["ip.src"].get<std::string>();
-  auto cur_dst = pkt["ip.dst"].get<std::string>();
-
-  // if IPv6 address is given... ;<
-  if (cur_src + cur_dst == "") {
-    return std::to_string(file_idx)
-           + "_NonIPv4";  // the only location to use dispatcher's file_idx
-  }
-
-  // fix a bug in tshark
-  // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
-  // first part of the address
-
-  size_t l;
-  //	string cur_src_backup = "", cur_dst_backup = "";
-  if ((l = cur_src.find(',')) != std::string::npos) {
-    // cout << "uuu...." << cur_src << endl;
-    //		cur_src_backup = cur_src;
-    cur_src = cur_src.substr(0, l);
-  }
-  if ((l = cur_dst.find(',')) != std::string::npos) {
-    // cout << "uuu....dst..." << cur_dst << endl;
-    //		cur_dst_backup = cur_dst;
-    cur_dst = cur_dst.substr(0, l);
-  }
-
-  // flow key generation policy:
-  // We assume that smaller port number address is the server;
-  // if the port number address is the same (found in many UDP cases),
-  //    we assume that the smaller IP address is the server
-  // We use the client-first, server-second pair
-
-  int keycomp = atoi(cur_srcport.c_str()) - atoi(cur_dstport.c_str());
-  if (keycomp == 0)  // the port number same case
-  {
-    struct in_addr src_n, dst_n;
-    if (inet_aton(cur_src.c_str(), &src_n) == 0 || inet_aton(cur_dst.c_str(), &dst_n) == 0) {
-      std::cerr << "Invalid address" << std::endl;
-      exit(EXIT_FAILURE);
+    size_t l;
+    if ((l = cur_src.find(',')) != std::string_view::npos) {
+      cur_src = cur_src.substr(0, l);
     }
-    if (src_n.s_addr >= dst_n.s_addr)  // dst_n is the server
+    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+      cur_dst = cur_dst.substr(0, l);
+    }
+
+    // flow key generation policy:
+    // We assume that smaller port number address is the server;
+    // if the port number address is the same (found in many UDP cases),
+    //    we assume that the smaller IP address is the server
+    // We use the client-first, server-second pair
+
+    int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
+    if (keycomp == 0)  // the port number same case
+    {
+      struct in_addr src_n, dst_n;
+      if (inet_aton(std::string(cur_src).c_str(), &src_n) == 0
+          || inet_aton(std::string(cur_dst).c_str(), &dst_n) == 0) {
+        std::cerr << "Invalid address" << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      if (src_n.s_addr >= dst_n.s_addr) {  // dst_n is the server
+        cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
+        key_data["__dir"] = "+1";
+      } else {  // dst_n is the client
+        cur_key = fmt::format("{2}:{3},{0}:{1}", cur_src, cur_srcport, cur_dst, cur_dstport);
+        key_data["__dir"] = "-1";
+      }
+    } else if (keycomp > 0) {  // srcport > dstport                   dstport is the server
       cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
-    else  // dst_n is the client
+      key_data["__dir"] = "+1";
+    } else {  // srcport < dstport                   dstport is the client
       cur_key = fmt::format("{2}:{3},{0}:{1}", cur_src, cur_srcport, cur_dst, cur_dstport);
-  } else if (keycomp > 0) {  // srcport > dstport                   dstport is the server
-    cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
-  } else {  // srcport < dstport                   dstport is the client
-    cur_key = fmt::format("{2}:{3},{0}:{1}", cur_src, cur_srcport, cur_dst, cur_dstport);
+      key_data["__dir"] = "-1";
+    }
+    key_data["__" + granularity + "_key"] = cur_key;
+    return key_data;
   }
-  return cur_key;
+};
+extern "C" fpnt::KeyGenerator* create_genKey_flow_ipv4() { return new GenKey_flow_ipv4(); }
+
+/** @brief A key generator for "bidirectional" Flow records assuming only IPv4 datagrams are
+ * available for efficient generation; use 5 tuple fields
+ */
+class GenKey_flow_ipv4_5tuple : public fpnt::KeyGenerator {
+public:
+  GenKey_flow_ipv4_5tuple()
+      : fpnt::KeyGenerator({"ip.src", "tcp.srcport", "udp.srcport", "udp.dstport", "ip.dst",
+                            "tcp.dstport", "ip.proto"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
+
+    std::string cur_key;
+    nlohmann::json key_data;
+
+    std::string_view cur_srcport;
+    std::string_view cur_dstport;
+    if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
+        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+    } else {
+      if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
+        std::cerr << "getPktKey: the corresponding input json does not collect udp.srcport and/or "
+                     "udp.dstport."
+                  << std::endl;
+        std::cerr
+            << "getPktKey: When tshark is used and UDP flows are needless, tshark must filter "
+               "off UDP packets."
+            << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      if (!pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
+        cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
+        cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+      } else {
+        cur_srcport = "0";
+        cur_dstport = "0";
+      }
+    }
+
+    std::string_view cur_src = pkt["ip.src"].get_ref<const std::string&>();
+    std::string_view cur_dst = pkt["ip.dst"].get_ref<const std::string&>();
+
+    // if IPv6 address is given... ;<
+    if (cur_src.empty() && cur_dst.empty()) {
+      key_data["__" + granularity + "_key"] = std::to_string(file_idx) + "_NonIPv4";
+      return key_data;  // the only location to use dispatcher's file_idx
+    }
+
+    size_t l;
+    if ((l = cur_src.find(',')) != std::string_view::npos) {
+      cur_src = cur_src.substr(0, l);
+    }
+    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+      cur_dst = cur_dst.substr(0, l);
+    }
+
+    std::string_view ip_proto = pkt["ip.proto"].get_ref<const std::string&>();
+
+    if ((l = ip_proto.find(',')) != std::string_view::npos) {
+      ip_proto = ip_proto.substr(0, l);
+    }
+
+    // flow key generation policy:
+    // We assume that smaller port number address is the server;
+    // if the port number address is the same (found in many UDP cases),
+    //    we assume that the smaller IP address is the server
+    // We use the client-first, server-second pair
+
+    int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
+    if (keycomp == 0)  // the port number same case
+    {
+      struct in_addr src_n, dst_n;
+      if (inet_aton(std::string(cur_src).c_str(), &src_n) == 0
+          || inet_aton(std::string(cur_dst).c_str(), &dst_n) == 0) {
+        std::cerr << "Invalid address" << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      if (src_n.s_addr >= dst_n.s_addr) {  // dst_n is the server
+        cur_key = fmt::format("{0}:{1},{2}:{3}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport,
+                              ip_proto);
+        key_data["__dir"] = "+1";
+      } else {  // dst_n is the client
+        cur_key = fmt::format("{2}:{3},{0}:{1}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport,
+                              ip_proto);
+        key_data["__dir"] = "-1";
+      }
+    } else if (keycomp > 0) {  // srcport > dstport                   dstport is the server
+      cur_key = fmt::format("{0}:{1},{2}:{3}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport,
+                            ip_proto);
+      key_data["__dir"] = "+1";
+    } else {  // srcport < dstport                   dstport is the client
+      cur_key = fmt::format("{2}:{3},{0}:{1}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport,
+                            ip_proto);
+      key_data["__dir"] = "-1";
+    }
+    key_data["__" + granularity + "_key"] = cur_key;
+    return key_data;
+  }
+};
+extern "C" fpnt::KeyGenerator* create_genKey_flow_ipv4_5tuple() {
+  return new GenKey_flow_ipv4_5tuple();
 }
 
 /** @brief Default key generator for "directional" Flow records assuming only TCP/IP, UDP/IP
@@ -358,63 +470,58 @@ const std::string genKey_flow_ipv4(const nlohmann::json& pkt, std::string& granu
  * _ws.col.def_dst, tcp.srcport or udp.srcport, tcp.dstport or udp.dstport); suitable for
  * encrypted traffic analysis such as TLS or QUIC; key string is "srcIP:srcPort,dstIP:dstPort".
  */
-const std::string genKey_flow_directional_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  std::string cur_key;
+class GenKey_flow_directional_default : public fpnt::KeyGenerator {
+public:
+  GenKey_flow_directional_default()
+      : fpnt::KeyGenerator({"tcp.srcport", "_ws.col.def_dst", "udp.srcport", "udp.dstport",
+                            "_ws.col.def_src", "tcp.dstport"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
 
-  std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
-  std::string cur_dstport = pkt["tcp.dstport"].get<std::string>();
+    std::string cur_key;
+    nlohmann::json key_data;
 
-  // Support for Protocol Name
-  std::string protocol_name = "TCP";
-
-  if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-    protocol_name = "UDP";
-
-    // Previously, when udp.srcport or udp.dstport is null, it was treated as an error to indicate
-    // user to check fpnt is correctly configured. However, in some cases, UDP port information
-    // might be missing, especially when analyzing certain types of traffic. To this end, we will
-    // set both ports to "0" when they are missing.
-    if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
+    std::string_view cur_srcport;
+    std::string_view cur_dstport;
+    if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
+        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+    } else if (pkt.contains("udp.srcport") && !pkt["udp.srcport"].is_null()
+               && !pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+    } else {
       cur_srcport = "0";
       cur_dstport = "0";
     }
 
-    cur_srcport = pkt["udp.srcport"].get<std::string>();
-    cur_dstport = pkt["udp.dstport"].get<std::string>();
+    std::string_view cur_src = pkt["_ws.col.def_src"].get_ref<const std::string&>();
+    std::string_view cur_dst = pkt["_ws.col.def_dst"].get_ref<const std::string&>();
 
-    if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-      protocol_name = "etc";
+    // fix a bug in tshark
+    // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
+    // first part of the address
 
-      cur_srcport = "0";
-      cur_dstport = "0";
+    size_t l;
+    if ((l = cur_src.find(',')) != std::string_view::npos) {
+      cur_src = cur_src.substr(0, l);
     }
+    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+      cur_dst = cur_dst.substr(0, l);
+    }
+
+    cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
+    key_data["__dir"] = "+1";
+
+    key_data["__" + granularity + "_key"] = cur_key;
+    return key_data;
   }
-
-  // end of Support for Protocol Name
-
-  auto cur_src = pkt["_ws.col.def_src"].get<std::string>();
-  auto cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
-
-  // fix a bug in tshark
-  // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
-  // first part of the address
-
-  size_t l;
-  //	string cur_src_backup = "", cur_dst_backup = "";
-  if ((l = cur_src.find(',')) != std::string::npos) {
-    // cout << "uuu...." << cur_src << endl;
-    //		cur_src_backup = cur_src;
-    cur_src = cur_src.substr(0, l);
-  }
-  if ((l = cur_dst.find(',')) != std::string::npos) {
-    // cout << "uuu....dst..." << cur_dst << endl;
-    //		cur_dst_backup = cur_dst;
-    cur_dst = cur_dst.substr(0, l);
-  }
-
-  cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
-
-  return cur_key;
+};
+extern "C" fpnt::KeyGenerator* create_genKey_flow_directional_default() {
+  return new GenKey_flow_directional_default();
 }
 
 /** @brief A key generator for "directional" Flow records assuming only TCP/IPv4, UDP/IPv4 datagrams
@@ -423,72 +530,71 @@ const std::string genKey_flow_directional_default(const nlohmann::json& pkt, std
  * IPv4 traffic analysis only; key string is "srcIP:srcPort,dstIP:dstPort".
  * non-IPv4 packets will have flow key string "{file_idx}_NonIPv4".
  */
-const std::string genKey_flow_directional_ipv4(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  std::string cur_key;
+class GenKey_flow_directional_ipv4 : public fpnt::KeyGenerator {
+public:
+  GenKey_flow_directional_ipv4()
+      : fpnt::KeyGenerator(
+            {"ip.src", "tcp.srcport", "udp.srcport", "udp.dstport", "ip.dst", "tcp.dstport"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
 
-  std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
-  std::string cur_dstport = pkt["tcp.dstport"].get<std::string>();
+    std::string cur_key;
+    nlohmann::json key_data;
 
-  // Support for Protocol Name
-  std::string protocol_name = "TCP";
-
-  if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-    protocol_name = "UDP";
-
-    // When udp.srcport or udp.dstport is null, it was treated as an error to indicate user to check
-    // fpnt is correctly configured.
-    if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
-      std::cerr << "getPktKey: the corresponding input json does not collect udp.srcport and/or "
-                   "udp.dstport."
-                << std::endl;
-      std::cerr << "getPktKey: When tshark is used and UDP flows are needless, tshark must filter "
-                   "off UDP packets."
-                << std::endl;
-      exit(EXIT_FAILURE);
+    std::string_view cur_srcport;
+    std::string_view cur_dstport;
+    if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
+        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+    } else {
+      if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
+        std::cerr << "getPktKey: the corresponding input json does not collect udp.srcport and/or "
+                     "udp.dstport."
+                  << std::endl;
+        std::cerr
+            << "getPktKey: When tshark is used and UDP flows are needless, tshark must filter "
+               "off UDP packets."
+            << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      if (!pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
+        cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
+        cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+      } else {
+        cur_srcport = "0";
+        cur_dstport = "0";
+      }
     }
 
-    cur_srcport = pkt["udp.srcport"].get<std::string>();
-    cur_dstport = pkt["udp.dstport"].get<std::string>();
+    std::string_view cur_src = pkt["ip.src"].get_ref<const std::string&>();
+    std::string_view cur_dst = pkt["ip.dst"].get_ref<const std::string&>();
 
-    if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-      protocol_name = "etc";
-
-      cur_srcport = "0";
-      cur_dstport = "0";
+    // if IPv6 address is given... ;<
+    if (cur_src.empty() && cur_dst.empty()) {
+      key_data["__" + granularity + "_key"] = std::to_string(file_idx) + "_NonIPv4";
+      return key_data;  // the only location to use dispatcher's file_idx
     }
+
+    size_t l;
+    if ((l = cur_src.find(',')) != std::string_view::npos) {
+      cur_src = cur_src.substr(0, l);
+    }
+    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+      cur_dst = cur_dst.substr(0, l);
+    }
+
+    cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
+    key_data["__dir"] = "+1";
+
+    key_data["__" + granularity + "_key"] = cur_key;
+    return key_data;
   }
-
-  // end of Support for Protocol Name
-
-  auto cur_src = pkt["ip.src"].get<std::string>();
-  auto cur_dst = pkt["ip.dst"].get<std::string>();
-
-  // if IPv6 address is given... ;<
-  if (cur_src + cur_dst == "") {
-    return std::to_string(file_idx)
-           + "_NonIPv4";  // the only location to use dispatcher's file_idx
-  }
-
-  // fix a bug in tshark
-  // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
-  // first part of the address
-
-  size_t l;
-  //	string cur_src_backup = "", cur_dst_backup = "";
-  if ((l = cur_src.find(',')) != std::string::npos) {
-    // cout << "uuu...." << cur_src << endl;
-    //		cur_src_backup = cur_src;
-    cur_src = cur_src.substr(0, l);
-  }
-  if ((l = cur_dst.find(',')) != std::string::npos) {
-    // cout << "uuu....dst..." << cur_dst << endl;
-    //		cur_dst_backup = cur_dst;
-    cur_dst = cur_dst.substr(0, l);
-  }
-
-  cur_key = fmt::format("{0}:{1},{2}:{3}", cur_src, cur_srcport, cur_dst, cur_dstport);
-
-  return cur_key;
+};
+extern "C" fpnt::KeyGenerator* create_genKey_flow_directional_ipv4() {
+  return new GenKey_flow_directional_ipv4();
 }
 
 /** @brief Default key generator for "directional" Flow records assuming only TCP/IP, UDP/IP
@@ -497,75 +603,69 @@ const std::string genKey_flow_directional_ipv4(const nlohmann::json& pkt, std::s
  * protocol); suitable for encrypted traffic analysis for conventional TCP/IP protocol; key string
  * is "srcIP:srcPort,dstIP:dstPort/protocol".
  */
-const std::string genKey_flow_directional_default_5tuple(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  std::string cur_key;
+class GenKey_flow_directional_default_5tuple : public fpnt::KeyGenerator {
+public:
+  GenKey_flow_directional_default_5tuple()
+      : fpnt::KeyGenerator({"ipv6.nxt", "tcp.srcport", "_ws.col.def_dst", "ip.proto", "udp.srcport",
+                            "udp.dstport", "_ws.col.def_src", "tcp.dstport"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
 
-  std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
-  std::string cur_dstport = pkt["tcp.dstport"].get<std::string>();
+    std::string cur_key;
+    nlohmann::json key_data;
 
-  // Support for Protocol Name
-  std::string protocol_name = "TCP";
-
-  if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-    protocol_name = "UDP";
-
-    // Previously, when udp.srcport or udp.dstport is null, it was treated as an error to indicate
-    // user to check fpnt is correctly configured. However, in some cases, UDP port information
-    // might be missing, especially when analyzing certain types of traffic. To this end, we will
-    // set both ports to "0" when they are missing.
-    if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
+    std::string_view cur_srcport;
+    std::string_view cur_dstport;
+    if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
+        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+    } else if (pkt.contains("udp.srcport") && !pkt["udp.srcport"].is_null()
+               && !pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+    } else {
       cur_srcport = "0";
       cur_dstport = "0";
     }
 
-    cur_srcport = pkt["udp.srcport"].get<std::string>();
-    cur_dstport = pkt["udp.dstport"].get<std::string>();
+    std::string_view cur_src = pkt["_ws.col.def_src"].get_ref<const std::string&>();
+    std::string_view cur_dst = pkt["_ws.col.def_dst"].get_ref<const std::string&>();
 
-    if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-      protocol_name = "etc";
+    // fix a bug in tshark
+    // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
+    // first part of the address
 
-      cur_srcport = "0";
-      cur_dstport = "0";
+    size_t l;
+    if ((l = cur_src.find(',')) != std::string_view::npos) {
+      cur_src = cur_src.substr(0, l);
     }
+    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+      cur_dst = cur_dst.substr(0, l);
+    }
+
+    std::string_view ip_proto = pkt["ip.proto"].get_ref<const std::string&>();
+
+    if (ip_proto.empty()) {
+      ip_proto = pkt["ipv6.nxt"].get_ref<const std::string&>();
+    }
+
+    if ((l = ip_proto.find(',')) != std::string_view::npos) {
+      ip_proto = ip_proto.substr(0, l);
+    }
+
+    cur_key
+        = fmt::format("{0}:{1},{2}:{3}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport, ip_proto);
+    key_data["__dir"] = "+1";
+
+    key_data["__" + granularity + "_key"] = cur_key;
+    return key_data;
   }
-
-  // end of Support for Protocol Name
-
-  auto cur_src = pkt["_ws.col.def_src"].get<std::string>();
-  auto cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
-
-  // fix a bug in tshark
-  // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
-  // first part of the address
-
-  size_t l;
-  //	string cur_src_backup = "", cur_dst_backup = "";
-  if ((l = cur_src.find(',')) != std::string::npos) {
-    // cout << "uuu...." << cur_src << endl;
-    //		cur_src_backup = cur_src;
-    cur_src = cur_src.substr(0, l);
-  }
-  if ((l = cur_dst.find(',')) != std::string::npos) {
-    // cout << "uuu....dst..." << cur_dst << endl;
-    //		cur_dst_backup = cur_dst;
-    cur_dst = cur_dst.substr(0, l);
-  }
-
-  std::string ip_proto = pkt["ip.proto"].get<std::string>();
-
-  if (ip_proto.compare("") == 0) {
-    std::string ipv6_nxt = pkt["ipv6.nxt"].get<std::string>();
-    ip_proto = ipv6_nxt;
-  }
-
-  if ((l = ip_proto.find(',')) != std::string::npos) {
-    ip_proto = ip_proto.substr(0, l);
-  }
-
-  cur_key
-      = fmt::format("{0}:{1},{2}:{3}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport, ip_proto);
-
-  return cur_key;
+};
+extern "C" fpnt::KeyGenerator* create_genKey_flow_directional_default_5tuple() {
+  return new GenKey_flow_directional_default_5tuple();
 }
 
 /** @brief A key generator for "directional" Flow records assuming only TCP/IPv4, UDP/IPv4 datagrams
@@ -574,84 +674,82 @@ const std::string genKey_flow_directional_default_5tuple(const nlohmann::json& p
  * IPv4 traffic analysis only; key string is "srcIP:srcPort,dstIP:dstPort".
  * non-IPv4 packets will have flow key string "{file_idx}_NonIPv4".
  */
-const std::string genKey_flow_directional_ipv4_5tuple(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  std::string cur_key;
+class GenKey_flow_directional_ipv4_5tuple : public fpnt::KeyGenerator {
+public:
+  GenKey_flow_directional_ipv4_5tuple()
+      : fpnt::KeyGenerator({"ip.src", "tcp.srcport", "ipv6.nxt", "ip.proto", "udp.srcport",
+                            "udp.dstport", "ip.dst", "tcp.dstport"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
 
-  std::string cur_srcport = pkt["tcp.srcport"].get<std::string>();
-  std::string cur_dstport = pkt["tcp.dstport"].get<std::string>();
+    std::string cur_key;
+    nlohmann::json key_data;
 
-  // Support for Protocol Name
-  std::string protocol_name = "TCP";
-
-  if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-    protocol_name = "UDP";
-
-    // When udp.srcport or udp.dstport is null, it was treated as an error to indicate user to check
-    // fpnt is correctly configured.
-    if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
-      std::cerr << "getPktKey: the corresponding input json does not collect udp.srcport and/or "
-                   "udp.dstport."
-                << std::endl;
-      std::cerr << "getPktKey: When tshark is used and UDP flows are needless, tshark must filter "
-                   "off UDP packets."
-                << std::endl;
-      exit(EXIT_FAILURE);
+    std::string_view cur_srcport;
+    std::string_view cur_dstport;
+    if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
+        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
+      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
+      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+    } else {
+      if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
+        std::cerr << "getPktKey: the corresponding input json does not collect udp.srcport and/or "
+                     "udp.dstport."
+                  << std::endl;
+        std::cerr
+            << "getPktKey: When tshark is used and UDP flows are needless, tshark must filter "
+               "off UDP packets."
+            << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      if (!pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
+        cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
+        cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+      } else {
+        cur_srcport = "0";
+        cur_dstport = "0";
+      }
     }
 
-    cur_srcport = pkt["udp.srcport"].get<std::string>();
-    cur_dstport = pkt["udp.dstport"].get<std::string>();
+    std::string_view cur_src = pkt["ip.src"].get_ref<const std::string&>();
+    std::string_view cur_dst = pkt["ip.dst"].get_ref<const std::string&>();
 
-    if (cur_srcport.compare("") == 0 || cur_dstport.compare("") == 0) {
-      protocol_name = "etc";
-
-      cur_srcport = "0";
-      cur_dstport = "0";
+    // if IPv6 address is given... ;<
+    if (cur_src.empty() && cur_dst.empty()) {
+      key_data["__" + granularity + "_key"] = std::to_string(file_idx) + "_NonIPv4";
+      return key_data;  // the only location to use dispatcher's file_idx
     }
+
+    size_t l;
+    if ((l = cur_src.find(',')) != std::string_view::npos) {
+      cur_src = cur_src.substr(0, l);
+    }
+    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+      cur_dst = cur_dst.substr(0, l);
+    }
+
+    std::string_view ip_proto = pkt["ip.proto"].get_ref<const std::string&>();
+
+    if (ip_proto.empty()) {
+      ip_proto = pkt["ipv6.nxt"].get_ref<const std::string&>();
+    }
+
+    if ((l = ip_proto.find(',')) != std::string_view::npos) {
+      ip_proto = ip_proto.substr(0, l);
+    }
+
+    cur_key
+        = fmt::format("{0}:{1},{2}:{3}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport, ip_proto);
+    key_data["__dir"] = "+1";
+
+    key_data["__" + granularity + "_key"] = cur_key;
+    return key_data;
   }
-
-  // end of Support for Protocol Name
-
-  auto cur_src = pkt["ip.src"].get<std::string>();
-  auto cur_dst = pkt["ip.dst"].get<std::string>();
-
-  // if IPv6 address is given... ;<
-  if (cur_src + cur_dst == "") {
-    return std::to_string(file_idx)
-           + "_NonIPv4";  // the only location to use dispatcher's file_idx
-  }
-
-  // fix a bug in tshark
-  // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
-  // first part of the address
-
-  size_t l;
-  //	string cur_src_backup = "", cur_dst_backup = "";
-  if ((l = cur_src.find(',')) != std::string::npos) {
-    // cout << "uuu...." << cur_src << endl;
-    //		cur_src_backup = cur_src;
-    cur_src = cur_src.substr(0, l);
-  }
-  if ((l = cur_dst.find(',')) != std::string::npos) {
-    // cout << "uuu....dst..." << cur_dst << endl;
-    //		cur_dst_backup = cur_dst;
-    cur_dst = cur_dst.substr(0, l);
-  }
-
-  std::string ip_proto = pkt["ip.proto"].get<std::string>();
-
-  if (ip_proto.compare("") == 0) {
-    std::string ipv6_nxt = pkt["ipv6.nxt"].get<std::string>();
-    ip_proto = ipv6_nxt;
-  }
-
-  if ((l = ip_proto.find(',')) != std::string::npos) {
-    ip_proto = ip_proto.substr(0, l);
-  }
-
-  cur_key
-      = fmt::format("{0}:{1},{2}:{3}/{4}", cur_src, cur_srcport, cur_dst, cur_dstport, ip_proto);
-
-  return cur_key;
+};
+extern "C" fpnt::KeyGenerator* create_genKey_flow_directional_ipv4_5tuple() {
+  return new GenKey_flow_directional_ipv4_5tuple();
 }
 
 /** @brief Default key generator for "bidirectional" Flow records assuming only IPv4 datagrams are
@@ -660,55 +758,63 @@ const std::string genKey_flow_directional_ipv4_5tuple(const nlohmann::json& pkt,
  * appeared first
  *
  */
-const std::string genKey_flowset_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  std::string cur_key;
+class GenKey_flowset_default : public fpnt::KeyGenerator {
+public:
+  GenKey_flowset_default() : fpnt::KeyGenerator({"_ws.col.def_src", "_ws.col.def_dst"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
 
-  auto cur_src = pkt["_ws.col.def_src"].get<std::string>();
-  auto cur_dst = pkt["_ws.col.def_dst"].get<std::string>();
+    std::string cur_key;
+    nlohmann::json key_data;
 
-  // fix a bug in tshark
-  // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
-  // first part of the address
+    std::string_view cur_src = pkt["_ws.col.def_src"].get_ref<const std::string&>();
+    std::string_view cur_dst = pkt["_ws.col.def_dst"].get_ref<const std::string&>();
 
-  size_t l;
-  //	string cur_src_backup = "", cur_dst_backup = "";
-  if ((l = cur_src.find(',')) != std::string::npos) {
-    // cout << "uuu...." << cur_src << endl;
-    //		cur_src_backup = cur_src;
-    cur_src = cur_src.substr(0, l);
-  }
-  if ((l = cur_dst.find(',')) != std::string::npos) {
-    // cout << "uuu....dst..." << cur_dst << endl;
-    //		cur_dst_backup = cur_dst;
-    cur_dst = cur_dst.substr(0, l);
-  }
+    // fix a bug in tshark
+    // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
+    // first part of the address
 
-  bool src_greater_equal = false;
-  if (cur_src.find(':') != std::string::npos) {  // IPv6
-    struct in6_addr src_n, dst_n;
-    if (inet_pton(AF_INET6, cur_src.c_str(), &src_n) != 1
-        || inet_pton(AF_INET6, cur_dst.c_str(), &dst_n) != 1) {
-      std::cerr << "Invalid IPv6 address" << std::endl;
-      exit(EXIT_FAILURE);
+    size_t l;
+    if ((l = cur_src.find(',')) != std::string_view::npos) {
+      cur_src = cur_src.substr(0, l);
     }
-    if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
-  } else {  // IPv4
-    struct in_addr src_n, dst_n;
-    if (inet_pton(AF_INET, cur_src.c_str(), &src_n) != 1
-        || inet_pton(AF_INET, cur_dst.c_str(), &dst_n) != 1) {
-      std::cerr << "Invalid IPv4 address" << std::endl;
-      exit(EXIT_FAILURE);
+    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+      cur_dst = cur_dst.substr(0, l);
     }
-    // Compare in network byte order (Big Endian)
-    if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
+
+    bool src_greater_equal = false;
+    if (cur_src.find(':') != std::string::npos) {  // IPv6
+      struct in6_addr src_n, dst_n;
+      if (inet_pton(AF_INET6, std::string(cur_src).c_str(), &src_n) != 1
+          || inet_pton(AF_INET6, std::string(cur_dst).c_str(), &dst_n) != 1) {
+        std::cerr << "Invalid IPv6 address" << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
+    } else {  // IPv4
+      struct in_addr src_n, dst_n;
+      if (inet_pton(AF_INET, std::string(cur_src).c_str(), &src_n) != 1
+          || inet_pton(AF_INET, std::string(cur_dst).c_str(), &dst_n) != 1) {
+        std::cerr << "Invalid IPv4 address" << std::endl;
+        exit(EXIT_FAILURE);
+      }
+      // Compare in network byte order (Big Endian)
+      if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
+    }
+
+    if (src_greater_equal)
+      cur_key = fmt::format("{0},{1}", cur_dst, cur_src);
+    else
+      cur_key = fmt::format("{1},{0}", cur_dst, cur_src);
+
+    key_data["__" + granularity + "_key"] = cur_key;
+    return key_data;
   }
-
-  if (src_greater_equal)
-    cur_key = fmt::format("{0},{1}", cur_dst, cur_src);
-  else
-    cur_key = fmt::format("{1},{0}", cur_dst, cur_src);
-
-  return cur_key;
+};
+extern "C" fpnt::KeyGenerator* create_genKey_flowset_default() {
+  return new GenKey_flowset_default();
 }
 
 /** @brief A key generator for "bidirectional" Flow records assuming only IPv4 datagrams are
@@ -716,57 +822,89 @@ const std::string genKey_flowset_default(const nlohmann::json& pkt, std::string&
  * analysis such as TLS or QUIC; note that the host with smaller IP address is appeared first;
  * non-IPv4 packets will have flow key string "{file_idx}_NonIPv4".
  */
-const std::string genKey_flowset_ipv4(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  std::string cur_key;
+class GenKey_flowset_ipv4 : public fpnt::KeyGenerator {
+public:
+  GenKey_flowset_ipv4() : fpnt::KeyGenerator({"ip.src", "ip.dst"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
 
-  auto cur_src = pkt["ip.src"].get<std::string>();
-  auto cur_dst = pkt["ip.dst"].get<std::string>();
+    std::string cur_key;
+    nlohmann::json key_data;
 
-  // if NonIPv4 address is given... ;<
-  if (cur_src + cur_dst == "") {
-    return std::to_string(file_idx)
-           + "_NonIPv4";  // the only location to use dispatcher's file_idx
+    std::string_view cur_src = pkt["ip.src"].get_ref<const std::string&>();
+    std::string_view cur_dst = pkt["ip.dst"].get_ref<const std::string&>();
+
+    // if NonIPv4 address is given... ;<
+    if (cur_src.empty() && cur_dst.empty()) {
+      key_data["__" + granularity + "_key"] = std::to_string(file_idx) + "_NonIPv4";
+      return key_data;  // the only location to use dispatcher's file_idx
+    }
+
+    // fix a bug in tshark
+    // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
+    // first part of the address
+
+    size_t l;
+    if ((l = cur_src.find(',')) != std::string_view::npos) {
+      cur_src = cur_src.substr(0, l);
+    }
+    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+      cur_dst = cur_dst.substr(0, l);
+    }
+
+    struct in_addr src_n, dst_n;
+    if (inet_aton(std::string(cur_src).c_str(), &src_n) == 0
+        || inet_aton(std::string(cur_dst).c_str(), &dst_n) == 0) {
+      std::cerr << "Invalid address" << std::endl;
+      exit(EXIT_FAILURE);
+    }
+    if (src_n.s_addr >= dst_n.s_addr)
+      cur_key = fmt::format("{0},{1}", cur_dst, cur_src);
+    else
+      cur_key = fmt::format("{1},{0}", cur_dst, cur_src);
+
+    key_data["__" + granularity + "_key"] = cur_key;
+    return key_data;
   }
-
-  // fix a bug in tshark
-  // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
-  // first part of the address
-
-  size_t l;
-  //	string cur_src_backup = "", cur_dst_backup = "";
-  if ((l = cur_src.find(',')) != std::string::npos) {
-    // cout << "uuu...." << cur_src << endl;
-    //		cur_src_backup = cur_src;
-    cur_src = cur_src.substr(0, l);
-  }
-  if ((l = cur_dst.find(',')) != std::string::npos) {
-    // cout << "uuu....dst..." << cur_dst << endl;
-    //		cur_dst_backup = cur_dst;
-    cur_dst = cur_dst.substr(0, l);
-  }
-
-  struct in_addr src_n, dst_n;
-  if (inet_aton(cur_src.c_str(), &src_n) == 0 || inet_aton(cur_dst.c_str(), &dst_n) == 0) {
-    std::cerr << "Invalid address" << std::endl;
-    exit(EXIT_FAILURE);
-  }
-  if (src_n.s_addr >= dst_n.s_addr)
-    cur_key = fmt::format("{0},{1}", cur_dst, cur_src);
-  else
-    cur_key = fmt::format("{1},{0}", cur_dst, cur_src);
-
-  return cur_key;
-}
+};
+extern "C" fpnt::KeyGenerator* create_genKey_flowset_ipv4() { return new GenKey_flowset_ipv4(); }
 
 /** @brief A sample key generator for Compressed Beamforming Report; we use 'packet' to refer a IEEE
  * 802.11 frame
  *
  */
-const std::string genKey_pkt_cbr(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  return std::to_string(pkt["idx"].get<size_t>()) + "_" + pkt["wlan.ra"].get<std::string>() + "_"
-         + pkt["wlan.ta"].get<std::string>();
-}
+class GenKey_pkt_cbr : public fpnt::KeyGenerator {
+public:
+  GenKey_pkt_cbr() : fpnt::KeyGenerator({"idx", "wlan.ta", "wlan.ra"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
 
-const std::string genKey_protocol_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx) {
-  return pkt["_ws.col.protocol"].get<std::string>();
+    nlohmann::json key_data;
+    key_data["__" + granularity + "_key"] = std::to_string(pkt["idx"].get<size_t>()) + "_"
+                                            + pkt["wlan.ra"].get_ref<const std::string&>() + "_"
+                                            + pkt["wlan.ta"].get_ref<const std::string&>();
+    return key_data;
+  }
+};
+extern "C" fpnt::KeyGenerator* create_genKey_pkt_cbr() { return new GenKey_pkt_cbr(); }
+
+class GenKey_protocol_default : public fpnt::KeyGenerator {
+public:
+  GenKey_protocol_default() : fpnt::KeyGenerator({"_ws.col.protocol"}) {}
+  nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
+    const auto& pkt = ctx.pkt;
+    [[maybe_unused]] auto& granularity = ctx.granularity;
+    [[maybe_unused]] auto file_idx = ctx.file_idx;
+
+    nlohmann::json key_data;
+    key_data["__" + granularity + "_key"] = pkt["_ws.col.protocol"].get_ref<const std::string&>();
+    return key_data;
+  }
+};
+extern "C" fpnt::KeyGenerator* create_genKey_protocol_default() {
+  return new GenKey_protocol_default();
 }

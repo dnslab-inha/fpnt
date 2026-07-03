@@ -114,8 +114,8 @@ namespace fpnt {
     // std::vector<nlohmann::json> out_pkts;
     // std::vector<nlohmann::json> out_flows;
     // std::vector<nlohmann::json> out_flowsets;
-    std::unordered_map<std::string, std::unordered_map<std::string, nlohmann::json>>
-        out;  // v0.3 out record는 key로만 접근함
+    std::unordered_map<std::string, std::vector<nlohmann::json>>
+        out;  // v0.3 out record는 key로만 접근함 -> 이제 index 기반으로 바뀜
 
     // std::set<std::string> keys_pkt;
     // std::set<std::string> keys_flow;
@@ -125,6 +125,7 @@ namespace fpnt {
     std::unordered_map<std::string, std::unordered_map<std::string, size_t>> out_key2idx;  // v0.3
     std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>>
         out_child_keys;  // v0.3
+    std::unordered_map<std::string, std::vector<std::vector<size_t>>> out_child_idxs;
 
     // std::map<std::string, size_t> flow_idx_from_flow; // get_idx(key, "flow")
     // std::map<std::string, std::vector<size_t>> pkt_idxs_from_flow; // get_idxs(key, "flow",

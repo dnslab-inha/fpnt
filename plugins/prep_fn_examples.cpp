@@ -1,13 +1,18 @@
+#include <fpnt/plugin_context.h>
+
 #include <algorithm>
 #include <nlohmann/json.hpp>
 #include <string>
-#include <tuple>
 #include <utility>
 
-#include "default_keygen.h"
-#include <fpnt/plugin_context.h>
 #include "util_plugins.h"
 
+/**
+ * @brief Prints debug information about the current plugin context including field, value, option,
+ * record, mapper, indices, and sizes.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
 extern "C" void P_debug(fpnt::PluginContext& ctx) {
   std::cout << "ctx.getField() (name): " << ctx.getField() << "\t";
 
@@ -16,7 +21,8 @@ extern "C" void P_debug(fpnt::PluginContext& ctx) {
     return;
   }
 
-  std::cout << "ctx.getField() (value) : " << ctx.getRecord()[ctx.getField()].get<std::string>() << "\t";
+  std::cout << "ctx.getField() (value) : " << ctx.getRecord()[ctx.getField()].get<std::string>()
+            << "\t";
   std::cout << "ctx.getField() (value; without get) : " << ctx.getRecord()[ctx.getField()] << "\t";
   std::cout << "Option: " << ctx.getOption() << "\t";
   std::cout << "Out Record: " << ctx.getRecord().dump() << "\t";
@@ -29,25 +35,33 @@ extern "C" void P_debug(fpnt::PluginContext& ctx) {
     else
       std::cout << ", ";
   }
-  std::cout << "In Packet Index (idx): " << std::to_string(ctx.getRecord()["__in_idx"].get<size_t>())
-            << std::endl;
-  std::cout << "Out Index (idx): " << std::to_string(ctx.getOutKey2Idx().at(ctx.getGranularity()).at(ctx.getKey()))
+  std::cout << "In Packet Index (idx): "
+            << std::to_string(ctx.getRecord()["__in_idx"].get<size_t>()) << std::endl;
+  std::cout << "Out Index (idx): "
+            << std::to_string(ctx.getOutKey2Idx().at(ctx.getGranularity()).at(ctx.getKey()))
             << std::endl;
   std::cout << "Dispatcher pointer: " << &ctx << std::endl;
   std::cout << "Dispatcher in_pkts size: " << ctx.getInPkts().size() << std::endl;
-  std::cout << "Accessing in_pkts using idx: " << ctx.getInPkts()[ctx.getRecord()["__in_idx"]].dump()
-            << std::endl;
+  std::cout << "Accessing in_pkts using idx: "
+            << ctx.getInPkts()[ctx.getRecord()["__in_idx"]].dump() << std::endl;
 }
 
+/**
+ * @brief Copies a value from the input packet to the output record for the given fieldname or
+ * option.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
 extern "C" void P_cpy(fpnt::PluginContext& ctx) {
   //    auto x = ctx.getInMap().getFields();
 
   //    if (&map == &ctx->map_pkt)
-  //    std::cout << "Out " << ctx.getField() << " Opt " << ctx.getOption() << " ptr " << ctx << " idx " << idx <<
-  //    " sz " << ctx.getInPkts().size() << std::endl; std::cout << ctx.getInPkts()[idx].dump() <<
-  //    std::endl; std::cout << ctx.getInPkts()[idx][ctx.getOption()] << std::endl; std::cout <<
-  //    ctx.getRecord().dump() << std::endl;
-  // if no ctx.getOption(), the given fieldname is assumed to be the same as in the input ctx.getField().
+  //    std::cout << "Out " << ctx.getField() << " Opt " << ctx.getOption() << " ptr " << ctx << "
+  //    idx " << idx << " sz " << ctx.getInPkts().size() << std::endl; std::cout <<
+  //    ctx.getInPkts()[idx].dump() << std::endl; std::cout << ctx.getInPkts()[idx][ctx.getOption()]
+  //    << std::endl; std::cout << ctx.getRecord().dump() << std::endl;
+  // if no ctx.getOption(), the given fieldname is assumed to be the same as in the input
+  // ctx.getField().
   std::string fieldname = ctx.getOption();
   if (fieldname == "") fieldname = ctx.getField();
 
@@ -58,14 +72,27 @@ extern "C" void P_cpy(fpnt::PluginContext& ctx) {
     ctx.getRecord()[ctx.getField()] = ctx.getInPkts()[idx][fieldname].get<std::string>();
 }
 
+/**
+ * @brief Moves (or copies) a value from the input packet to the output record without null
+ * checking.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
 extern "C" void P_move(fpnt::PluginContext& ctx) {
-  // if no ctx.getOption(), the given fieldname is assumed to be the same as in the input ctx.getField().
+  // if no ctx.getOption(), the given fieldname is assumed to be the same as in the input
+  // ctx.getField().
   std::string fieldname = ctx.getOption();
   if (fieldname == "") fieldname = ctx.getField();
   const size_t idx = ctx.getRecord()["__in_idx"];
   ctx.getRecord()[ctx.getField()] = ctx.getInPkts()[idx][fieldname];
 }
 
+/**
+ * @brief Calculates the time difference (as double) between two keys provided in the option string
+ * separated by a colon.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
 extern "C" void P_diff_d(fpnt::PluginContext& ctx) {
   // parsing
   std::string start_key;
@@ -80,7 +107,8 @@ extern "C" void P_diff_d(fpnt::PluginContext& ctx) {
   end_key = ctx.getOption().substr(colon_pos + 1);
 
   // error check
-  if (ctx.getRecord().find(start_key) == ctx.getRecord().end() || ctx.getRecord().find(end_key) == ctx.getRecord().end()) {
+  if (ctx.getRecord().find(start_key) == ctx.getRecord().end()
+      || ctx.getRecord().find(end_key) == ctx.getRecord().end()) {
     throw std::runtime_error("One or both keys (" + start_key + ", " + end_key
                              + ") not found in ctx.getRecord() map.");
   }
@@ -108,15 +136,17 @@ extern "C" void P_diff_d(fpnt::PluginContext& ctx) {
 }
 
 /**
- * @brief Child ctx.getGranularity()'s ctx.getField() aggregation, without skipping empty fields
+ * @brief Aggregates the child granularity's field values into a comma-separated string, including
+ * empty fields.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_childagg(fpnt::PluginContext& ctx) {
   // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   std::string result = "";
   bool first = true;
-  
+
   const auto& opt = ctx.getOption();
   for (auto& child_key : ctx.getChildKeys()) {
     if (first) {
@@ -132,12 +162,12 @@ extern "C" void P_childagg(fpnt::PluginContext& ctx) {
 }
 
 /**
- * @brief Child ctx.getGranularity()'s ctx.getField() aggregation, ordered by __real_arrival_order, without skipping
- * empty fields
+ * @brief Aggregates the child granularity's field values into a comma-separated string, ordered by
+ * the real arrival order, including empty fields.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_childagg_real_arrival_order(fpnt::PluginContext& ctx) {
-  
   std::vector<std::pair<size_t, std::string>> ordered_vals;
 
   const auto& opt = ctx.getOption();
@@ -145,8 +175,9 @@ extern "C" void P_childagg_real_arrival_order(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
 
     if (cnt["__real_arrival_order"].is_null()) {
-      std::cerr << "P_childagg_real_arrival_order: Missing __real_arrival_order in child ctx.getRecord()!"
-                << std::endl;
+      std::cerr
+          << "P_childagg_real_arrival_order: Missing __real_arrival_order in child ctx.getRecord()!"
+          << std::endl;
       exit(1);
     }
 
@@ -173,15 +204,17 @@ extern "C" void P_childagg_real_arrival_order(fpnt::PluginContext& ctx) {
 }
 
 /**
- * @brief Packet ctx.getField() aggregation for flow, with skipping empty fields
+ * @brief Aggregates the child granularity's field values into a comma-separated string, skipping
+ * any empty fields.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_skipchildagg(fpnt::PluginContext& ctx) {
   // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   std::string result = "";
   bool first = true;
-  
+
   const auto& opt = ctx.getOption();
   for (auto& child_key : ctx.getChildKeys()) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
@@ -200,8 +233,9 @@ extern "C" void P_skipchildagg(fpnt::PluginContext& ctx) {
 }
 
 /**
- * @brief Interarrival Time Sequence for Flow
+ * @brief Calculates and stores the Interarrival Time (IAT) sequence for the flow.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_iat(fpnt::PluginContext& ctx) {
   // ctx.getOption() contains out_pkt ctx.getField() name
@@ -241,8 +275,10 @@ extern "C" void P_iat(fpnt::PluginContext& ctx) {
 }
 
 /**
- * @brief Interarrival Time Sequence for Flow with Arrival Order Correction
+ * @brief Calculates and stores the Interarrival Time (IAT) sequence for the flow, with arrival
+ * order correction.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_iat_correct(fpnt::PluginContext& ctx) {
   std::vector<std::pair<std::string, double>> ordered_arrivals;
@@ -281,8 +317,9 @@ extern "C" void P_iat_correct(fpnt::PluginContext& ctx) {
 }
 
 /**
- * @brief Interarrival Time Sequence for Flowset defined in CBSeq
+ * @brief Calculates and stores the Interarrival Time (IAT) sequence for a flowset defined in CBSeq.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_iat_cbseq(fpnt::PluginContext& ctx) {
   // ctx.getOption() contains flow's start time ctx.getField() name
@@ -318,23 +355,25 @@ extern "C" void P_iat_cbseq(fpnt::PluginContext& ctx) {
 }
 
 /**
- * @brief Return Child count
+ * @brief Counts the number of child records and stores the count as a string.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_childcount(fpnt::PluginContext& ctx) {
   ctx.getRecord()[ctx.getField()] = std::to_string(ctx.getChildKeys().size());
 }
 
 /**
- * @brief Return Child count if the value is true
+ * @brief Counts the number of child records where the value is evaluated as true.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_childcountTrue(fpnt::PluginContext& ctx) {
   // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   std::string result = "";
   size_t count = 0;
-  
+
   const auto& opt = ctx.getOption();
   for (auto& child_key : ctx.getChildKeys()) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
@@ -344,12 +383,17 @@ extern "C" void P_childcountTrue(fpnt::PluginContext& ctx) {
   ctx.getRecord()[ctx.getField()] = std::to_string(count);
 }
 
+/**
+ * @brief Counts the number of child records where the value is evaluated as false.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
 extern "C" void P_childcountFalse(fpnt::PluginContext& ctx) {
   // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   std::string result = "";
   size_t count = 0;
-  
+
   const auto& opt = ctx.getOption();
   for (auto& child_key : ctx.getChildKeys()) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
@@ -360,16 +404,20 @@ extern "C" void P_childcountFalse(fpnt::PluginContext& ctx) {
 }
 
 /**
- * @brief Packet count for any granuality (without packet)
+ * @brief Counts the number of packets associated with the current granularity.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_pktcount(fpnt::PluginContext& ctx) {
-  ctx.getRecord()[ctx.getField()] = std::to_string(ctx.getKeys(ctx.getKey(), ctx.getGranularity(), "pkt").size());
+  ctx.getRecord()[ctx.getField()]
+      = std::to_string(ctx.getKeys(ctx.getKey(), ctx.getGranularity(), "pkt").size());
 }
 
 /**
- * @brief Packet ctx.getField() aggregation for flowset, without skipping empty fields
+ * @brief Aggregates packet field values for a flowset into a comma-separated string, including
+ * empty fields.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_pf_agg(fpnt::PluginContext& ctx) {
   // ctx.getOption() contains out_pkt ctx.getField() name
@@ -384,15 +432,16 @@ extern "C" void P_pf_agg(fpnt::PluginContext& ctx) {
       result += ",";
     }
     auto& val = ctx.getRecordByGranularity("pkt", pkt_key)[opt];
-    if (!val.is_null())
-      result += val.get<std::string>();
+    if (!val.is_null()) result += val.get<std::string>();
   }
   ctx.getRecord()[ctx.getField()] = result;
 }
 
 /**
- * @brief Packet ctx.getField() aggregation for flowset, with skipping empty fields
+ * @brief Aggregates packet field values for a flowset into a comma-separated string, skipping empty
+ * fields.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_skip_pf_agg(fpnt::PluginContext& ctx) {
   // ctx.getOption() contains out_pkt ctx.getField() name
@@ -415,83 +464,95 @@ extern "C" void P_skip_pf_agg(fpnt::PluginContext& ctx) {
   ctx.getRecord()[ctx.getField()] = result;
 }
 
-/** P_fill1: fill if empty
+/**
+ * @brief Fills the output record field with a value from the input packet if the field is currently
+ * empty.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_fill1(fpnt::PluginContext& ctx) {
   const size_t idx = ctx.getRecord()["__in_idx"];
-  if (ctx.getRecord()[ctx.getField()] == "") ctx.getRecord()[ctx.getField()] = ctx.getInPkts()[idx][ctx.getOption()];
+  if (ctx.getRecord()[ctx.getField()] == "")
+    ctx.getRecord()[ctx.getField()] = ctx.getInPkts()[idx][ctx.getOption()];
 }
 
-/** P_firstcpy4flow: copy the first child's value for flow (typically expecting that the packets in
- * the flow have the same value)
+/**
+ * @brief Copies the specified option value from the first child record (typically expecting all
+ * packets in the flow to have the same value).
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_firstcpy(fpnt::PluginContext& ctx) {
-  
   auto first_child_key = ctx.getChildKeys()[0];
   ctx.getRecord()[ctx.getField()] = ctx.getChildRecord(first_child_key)[ctx.getOption()];
 }
 
-/** P_fillOpt: fill with ctx.getOption() value
+/**
+ * @brief Fills the output record field directly with the option string provided in the context.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_fillOpt(fpnt::PluginContext& ctx) {
   ctx.getRecord()[ctx.getField()] = ctx.getOption();
 }
 
-/** P_saveKey: save the ctx.getKey() corresponding to "ctx.getOption()" ctx.getGranularity(), of the current ctx.getRecord(), to the
- * ctx.getField() value Please note this function does not check the availability of such ctx.getKey().
+/**
+ * @brief Saves the key corresponding to the context's option and granularity to the output field.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_saveKey(fpnt::PluginContext& ctx) {
-  ctx.getRecord()[ctx.getField()] = ctx.getRecord()["__" + ctx.getOption() + "_key"];
+  ctx.getRecord()[ctx.getField()] = ctx.getKey(ctx.getKey(), ctx.getGranularity(), ctx.getOption());
 }
 
-/** P_saveFlowKey: save the corresponding flow ctx.getRecord()'s ctx.getKey(), of the current ctx.getRecord(), to the ctx.getField()
- * value Please note this function does not check the availability of such ctx.getKey().
+/**
+ * @brief Saves the flow key to the output field.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_saveFlowKey(fpnt::PluginContext& ctx) {
-  ctx.getRecord()[ctx.getField()] = ctx.getRecord()["__flow_key"];
+  ctx.getRecord()[ctx.getField()] = ctx.getKey(ctx.getKey(), ctx.getGranularity(), "flow");
 }
 
-/** P_saveFlowsetKey: save the corresponding flowset ctx.getRecord()'s ctx.getKey(), of the current ctx.getRecord(), to the
- * ctx.getField() value Please note this function does not check the availability of such ctx.getKey().
+/**
+ * @brief Saves the flowset key to the output field.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_saveFlowsetKey(fpnt::PluginContext& ctx) {
-  ctx.getRecord()[ctx.getField()] = ctx.getRecord()["__flowset_key"];
+  ctx.getRecord()[ctx.getField()] = ctx.getKey(ctx.getKey(), ctx.getGranularity(), "flowset");
 }
 
-/** P_savePktKey: save the corresponding pkt's ctx.getKey(), of the current ctx.getRecord(), to the ctx.getField() value
- * Please note this function does not check the availability of such ctx.getKey(), but due to the internal
- * design of fpnt, this ctx.getKey() must be available.
+/**
+ * @brief Saves the packet key to the output field.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_savePktKey(fpnt::PluginContext& ctx) {
-  ctx.getRecord()[ctx.getField()] = ctx.getRecord()["__pkt_key"];
+  ctx.getRecord()[ctx.getField()] = ctx.getKey(ctx.getKey(), ctx.getGranularity(), "pkt");
 }
 
-/** P_saveDir: save the corresponding dir, of the current ctx.getRecord(), to the ctx.getField() value
- * Please note this function does not check the availability of such ctx.getKey(), but due to the internal
- * design of fpnt, this ctx.getKey() must be available.
+/**
+ * @brief Saves the direction field to the output field.
  *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_saveDir(fpnt::PluginContext& ctx) {
-  ctx.getRecord()[ctx.getField()] = ctx.getRecord()["__dir"];
+  const size_t idx = ctx.getRecord()["__in_idx"];
+  if (ctx.getInPkts()[idx].contains("__dir")) {
+    ctx.getRecord()[ctx.getField()] = ctx.getInPkts()[idx]["__dir"];
+  }
 }
 
-/** P_dir: calculate packet direction (either +1 or -1) based on genKey_flow_default (a stateless
- * flow ctx.getKey() generation). That is, the first IP address of the flow ctx.getKey() is the smaller one, not the
- * client's IP address. Therefore, When you want to obtain "the TCP style" packet direction
- * sequence, you need to check whether the first packet's direction is +1 or -1. If it is -1, the
- * sequence values should be multiplied by -1.
+/**
+ * @brief Calculates the packet direction (+1 or -1) based on a stateless flow key generation.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_dir(fpnt::PluginContext& ctx) {
   const size_t idx = ctx.getRecord()["__in_idx"];
   // std::cout << ctx.getRecord().dump() << std::endl;
-  const auto& flow_key = ctx.getRecord()["__flow_key"].get_ref<const std::string&>();
+  const std::string flow_key = ctx.getKey(ctx.getKey(), ctx.getGranularity(), "flow");
 
   std::string ipsrc = ctx.getInPkts()[idx]["_ws.col.def_src"].get<std::string>();
 
@@ -544,7 +605,7 @@ extern "C" void P_dir(fpnt::PluginContext& ctx) {
       dstport = ctx.getInPkts()[idx]["udp.dstport"].get<std::string>();
     }
 
-    if (dstport == "") {      // both tcp and udp has empty dstport
+    if (dstport == "") {               // both tcp and udp has empty dstport
       ctx.getRecord()["__dir"] = "0";  // unexpected value
       return;
     }
@@ -559,16 +620,16 @@ extern "C" void P_dir(fpnt::PluginContext& ctx) {
   }
 }
 
-/** P_dir_ipv4: calculate packet direction (either +1 or -1) based on genKey_flow_ipv4 (a stateless
- * flow ctx.getKey() generation). That is, the first IP address of the flow ctx.getKey() is the smaller one, not the
- * client's IP address. Therefore, When you want to obtain "the TCP style" packet direction
- * sequence, you need to check whether the first packet's direction is +1 or -1. If it is -1, the
- * sequence values should be multiplied by -1.
+/**
+ * @brief Calculates the packet direction (+1 or -1) specifically for IPv4, based on a stateless
+ * flow key generation.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
  */
 extern "C" void P_dir_ipv4(fpnt::PluginContext& ctx) {
   const size_t idx = ctx.getRecord()["__in_idx"];
   // std::cout << ctx.getRecord().dump() << std::endl;
-  const auto& flow_key = ctx.getRecord()["__flow_key"].get_ref<const std::string&>();
+  const std::string flow_key = ctx.getKey(ctx.getKey(), ctx.getGranularity(), "flow");
 
   if (flow_key.length() >= 5 && flow_key.substr(flow_key.length() - 5, 5) == "_IPv6") {
     ctx.getRecord()["__dir"] = "0";  // unexpected value
@@ -620,7 +681,7 @@ extern "C" void P_dir_ipv4(fpnt::PluginContext& ctx) {
       dstport = ctx.getInPkts()[idx]["udp.dstport"].get<std::string>();
     }
 
-    if (dstport == "") {      // both tcp and udp has empty dstport
+    if (dstport == "") {               // both tcp and udp has empty dstport
       ctx.getRecord()["__dir"] = "0";  // unexpected value
       return;
     }
@@ -633,4 +694,168 @@ extern "C" void P_dir_ipv4(fpnt::PluginContext& ctx) {
       ctx.getRecord()["__dir"] = "-1";
     }
   }
+}
+
+// =========================================================================
+// INDEX-BASED CHILD ACCESS OPTIMIZATIONS (P_*_idx API)
+// =========================================================================
+
+/**
+ * @brief (Index-based API version) Aggregates the child granularity's field values into a
+ * comma-separated string, including empty fields.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
+extern "C" void P_childagg_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  std::string result = "";
+  bool first = true;
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    if (first) {
+      first = false;
+    } else {
+      result += ",";
+    }
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[opt];
+    if (!val.is_null()) result += val.get<std::string>();
+  }
+  ctx.getRecord()[ctx.getField()] = result;
+}
+
+/**
+ * @brief (Index-based API version) Aggregates the child granularity's field values into a
+ * comma-separated string, ordered by the real arrival order, including empty fields.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
+extern "C" void P_childagg_real_arrival_order_idx(fpnt::PluginContext& ctx) {
+  std::vector<std::pair<size_t, std::string>> ordered_vals;
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+
+    if (cnt["__real_arrival_order"].is_null()) {
+      std::cerr
+          << "P_childagg_real_arrival_order: Missing __real_arrival_order in child ctx.getRecord()!"
+          << std::endl;
+      exit(1);
+    }
+
+    size_t order = cnt["__real_arrival_order"].get<size_t>();
+    std::string val_str = "";
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      val_str = val.get<std::string>();
+    }
+    ordered_vals.push_back({order, val_str});
+  }
+
+  std::sort(ordered_vals.begin(), ordered_vals.end(),
+            [](const std::pair<size_t, std::string>& a, const std::pair<size_t, std::string>& b) {
+              return a.first < b.first;
+            });
+
+  std::string result = "";
+  for (size_t i = 0; i < ordered_vals.size(); ++i) {
+    if (i > 0) result += ",";
+    result += ordered_vals[i].second;
+  }
+  ctx.getRecord()[ctx.getField()] = result;
+}
+
+/**
+ * @brief (Index-based API version) Aggregates the child granularity's field values into a
+ * comma-separated string, skipping any empty fields.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
+extern "C" void P_skipchildagg_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  std::string result = "";
+  bool first = true;
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[opt];
+    if (!val.is_null() && val != "") {
+      if (first) {
+        first = false;
+      } else {
+        result += ",";
+      }
+
+      result += val.get<std::string>();
+    }
+  }
+  ctx.getRecord()[ctx.getField()] = result;
+}
+
+/**
+ * @brief (Index-based API version) Counts the number of child records and stores the count as a
+ * string.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
+extern "C" void P_childcount_idx(fpnt::PluginContext& ctx) {
+  ctx.getRecord()[ctx.getField()] = std::to_string(ctx.getChildIdxs().size());
+}
+
+/**
+ * @brief (Index-based API version) Counts the number of child records where the value is evaluated
+ * as true.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
+extern "C" void P_childcountTrue_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  std::string result = "";
+  size_t count = 0;
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    if (cnt[opt] == "True") count++;
+  }
+
+  ctx.getRecord()[ctx.getField()] = std::to_string(count);
+}
+
+/**
+ * @brief (Index-based API version) Counts the number of child records where the value is evaluated
+ * as false.
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
+extern "C" void P_childcountFalse_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  std::string result = "";
+  size_t count = 0;
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    if (cnt[opt] == "False") count++;
+  }
+
+  ctx.getRecord()[ctx.getField()] = std::to_string(count);
+}
+
+/**
+ * @brief (Index-based API version) Copies the specified option value from the first child record
+ * (typically expecting all packets in the flow to have the same value).
+ *
+ * @param ctx The plugin context providing access to records, fields, and options.
+ */
+extern "C" void P_firstcpy_idx(fpnt::PluginContext& ctx) {
+  auto first_child_idx = ctx.getChildIdxs()[0];
+  ctx.getRecord()[ctx.getField()] = ctx.getChildRecordByIdx(first_child_idx)[ctx.getOption()];
 }

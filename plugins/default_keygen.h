@@ -1,22 +1,21 @@
 #pragma once
+#include <fpnt/key_generator.h>
 #include <fpnt/mapper.h>
 
 #include <csv.hpp>
 #include <nlohmann/json.hpp>
-#include <string>
-#include <utility>
 
-extern "C" const std::string genKey_pkt_default(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
-extern "C" const std::string genKey_flow_default(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
-extern "C" const std::string genKey_flowset_default(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
-extern "C" const std::string genKey_flow_directional(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx);
-extern "C" const std::string genKey_flow_default_5tuple(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
-extern "C" const std::string genKey_flow_directional_default_5tuple(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx);
+extern "C" fpnt::KeyGenerator* create_genKey_pkt_default();
+extern "C" fpnt::KeyGenerator* create_genKey_flow_default();
+extern "C" fpnt::KeyGenerator* create_genKey_flowset_default();
+extern "C" fpnt::KeyGenerator* create_genKey_flow_directional();
+extern "C" fpnt::KeyGenerator* create_genKey_flow_default_5tuple();
+extern "C" fpnt::KeyGenerator* create_genKey_flow_directional_default_5tuple();
 
-extern "C" const std::string genKey_flow_ipv4(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
-extern "C" const std::string genKey_flowset_ipv4(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
-extern "C" const std::string genKey_flow_directional_ipv4(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx);
-extern "C" const std::string genKey_flow_directional_ipv4_5tuple(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx);
+extern "C" fpnt::KeyGenerator* create_genKey_flow_ipv4();
+extern "C" fpnt::KeyGenerator* create_genKey_flowset_ipv4();
+extern "C" fpnt::KeyGenerator* create_genKey_flow_directional_ipv4();
+extern "C" fpnt::KeyGenerator* create_genKey_flow_directional_ipv4_5tuple();
 
-extern "C" const std::string genKey_pkt_cbr(const nlohmann::json& pkt, std::string&, std::string&, size_t file_idx);
-extern "C" const std::string genKey_protocol_default(const nlohmann::json& pkt, std::string& granularity, std::string& key, size_t file_idx);
+extern "C" fpnt::KeyGenerator* create_genKey_pkt_cbr();
+extern "C" fpnt::KeyGenerator* create_genKey_protocol_default();

@@ -1,19 +1,24 @@
+#include <fpnt/plugin_context.h>
+
+#include <charconv>
 #include <nlohmann/json.hpp>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 
 #include "default_keygen.h"
-#include <fpnt/plugin_context.h>
 #include "util_plugins.h"
 
-/** getsubstr retrieves a substring of ctx.getRecord()[fieldname].get<std::string>() based on the string
- * ctx.getOption() and saves it to ctx.getRecord()[ctx.getField()]. For example, if ctx.getOption() is "fieldname,5,10", it extracts the
- * substring from index 5 to 10 from the value of ctx.getRecord()[fieldname]. If the given string is shorter
- * than the range specified in ctx.getOption(), it returns the possible substring. If the given string is
- * empty, ctx.getRecord()[ctx.getField()] is set to an empty string. For example, when ctx.getRecord()["supported_group"] =
- * "0x001d,0x0017,0x0018", if ctx.getOption() is "supported_group,0,6", the result is "0x001d", and if
- *   ctx.getOption() is "supported_group,7,13", the result is "0x0017".
+/** getsubstr retrieves a substring of ctx.getRecord()[fieldname].get_ref<const std::string&>()
+ * based on the string ctx.getOption() and saves it to ctx.getRecord()[ctx.getField()]. For example,
+ * if ctx.getOption() is "fieldname,5,10", it extracts the substring from index 5 to 10 from the
+ * value of ctx.getRecord()[fieldname]. If the given string is shorter than the range specified in
+ * ctx.getOption(), it returns the possible substring. If the given string is empty,
+ * ctx.getRecord()[ctx.getField()] is set to an empty string. For example, when
+ * ctx.getRecord()["supported_group"] = "0x001d,0x0017,0x0018", if ctx.getOption() is
+ * "supported_group,0,6", the result is "0x001d", and if ctx.getOption() is "supported_group,7,13",
+ * the result is "0x0017".
  */
 extern "C" void P_getsubstr(fpnt::PluginContext& ctx) {
   size_t first_comma = ctx.getOption().find(',');
@@ -72,14 +77,16 @@ extern "C" void P_getsubstr(fpnt::PluginContext& ctx) {
   ctx.getRecord()[ctx.getField()] = val.substr(start, len);
 }
 
-/** P_getsubstr_by_comma retrieves a substring of ctx.getRecord()[fieldname].get<std::string>() based on the
- * string ctx.getOption() and saves it to ctx.getRecord()[ctx.getField()]. For example, if ctx.getOption() is "fieldname,0", it extracts
- * the first substring by splitting ctx.getRecord()[fieldname] with ','. Also, if ctx.getOption() is "fieldname,1", it
- * extracts the second substring by splitting ctx.getRecord()[fieldname] with ','. If
- * ctx.getRecord()[fieldname].get<std::string>() has no comma, exceeds the range, or is empty,
- * ctx.getRecord()[ctx.getField()] is set to an empty string. For example, when ctx.getRecord()["handshake_type"] =
- * "2,11,12,13,14", if ctx.getOption() is "handshake_type,0", the result is "2", if ctx.getOption() is
- * "handshake_type,1", the result is "11", if ctx.getOption() is "handshake_type,5", the result is "".
+/** P_getsubstr_by_comma retrieves a substring of ctx.getRecord()[fieldname].get_ref<const
+ * std::string&>() based on the string ctx.getOption() and saves it to
+ * ctx.getRecord()[ctx.getField()]. For example, if ctx.getOption() is "fieldname,0", it extracts
+ * the first substring by splitting ctx.getRecord()[fieldname] with ','. Also, if ctx.getOption() is
+ * "fieldname,1", it extracts the second substring by splitting ctx.getRecord()[fieldname] with ','.
+ * If ctx.getRecord()[fieldname].get_ref<const std::string&>() has no comma, exceeds the range, or
+ * is empty, ctx.getRecord()[ctx.getField()] is set to an empty string. For example, when
+ * ctx.getRecord()["handshake_type"] = "2,11,12,13,14", if ctx.getOption() is "handshake_type,0",
+ * the result is "2", if ctx.getOption() is "handshake_type,1", the result is "11", if
+ * ctx.getOption() is "handshake_type,5", the result is "".
  */
 extern "C" void P_getsubstr_by_comma(fpnt::PluginContext& ctx) {
   size_t comma_pos = ctx.getOption().find(',');
