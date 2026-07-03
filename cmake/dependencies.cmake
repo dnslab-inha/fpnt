@@ -55,7 +55,7 @@ endif()
 CPMAddPackage(
   NAME csv
   GITHUB_REPOSITORY vincentlaucsb/csv-parser
-  GIT_TAG master
+  GIT_TAG 2.2.1
   OPTIONS "CSV_INSTALL OFF"
 )
 if(TARGET csv)

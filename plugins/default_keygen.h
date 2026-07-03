@@ -1,4 +1,9 @@
 #pragma once
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wreturn-type-c-linkage"
+#endif
 #include <fpnt/mapper.h>
 
 #include <csv.hpp>
@@ -34,3 +39,7 @@ extern "C" const std::string genKey_flow_directional_ipv4_5tuple(const nlohmann:
 extern "C" const std::string genKey_pkt_cbr(const nlohmann::json& pkt, std::string&, std::string&);
 extern "C" const std::string genKey_protocol_default(const nlohmann::json& pkt,
                                                      std::string& granularity, std::string& key);
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
