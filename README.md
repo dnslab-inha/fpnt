@@ -2,6 +2,12 @@
 
 `fpnt` is a C++-based framework to preprocess packet capture files (in `pcap` or `pcapng` format) in order to generate the corresponding Comma-Separated Values (CSV) files with varying levels of traffic granularity: packet, flow, and flowset. For each packet in the packet capture files, extracting and preprocessing various features is possible with the help of `tshark`-based decoding and filtering. Furthermore, by changing (or choosing) the flow and flowset key generation functions written in C++, you can define the notion of flow and flowset for your specific purpose. In addition, loading preprocessing functions as plugins (*i.e.*, shared object in Unix-like systems) is also supported in `fpnt`. Currently, `fpnt` only supports Unix-like systems, and has been tested in Ubuntu Linux.
 
+## What's New in v0.40
+The v0.40 updates focus on **massive throughput improvements** and **Plugin API optimizations**:
+* **High-Performance PCAP Reading**: `TSharkOutputReader` now utilizes standard C-style `popen` with 1MB buffered `fread` and high-speed `memchr` newline scanning, completely removing the overhead of C++ `pstreams` and `std::getline`.
+* **Index-based Plugin API**: Eliminated string key lookups during the plugin execution pipeline. The new Plugin API introduces `P_*_idx` functions (e.g., `getChildIdxs()`, `getChildRecordByIdx()`) for dramatically faster access.
+* **Vectorized Internal Storage**: `Dispatcher`'s internal storage (`out`) has been restructured from `std::unordered_map` to `std::vector`. This contiguous memory layout avoids constant reallocation and improves CPU cache locality.
+
 ## How to build
 
 To build `fpnt`, you need to install `cmake` and compiler (e.g., `gcc`). The following command installs them in Ubuntu:
@@ -121,7 +127,7 @@ If you want to execute `fpnt` in a specific directory without specifying the opt
 
 ## More on configurations
 
-* `fpnt` supports multiprocessing by dispatching each file to different process up to the number of CPUs automatically. However, you can turn off the feature by changing the `multiprocessing` field in `config.json` to `false`. It could be useful for debugging `fpnt` source code.
+* `fpnt` supports multiprocessing by dispatching each file to different process up to the number of CPUs automatically. You can turn off the feature by changing the `multiprocessing` field in `config.json` to `false`. It could be useful for debugging `fpnt` source code.
 * Currently, the `output_type` field in `config.json` must be set to `csv`, since other output types are not supported.
 * You can customize the `genKey_*` fields in `config.json`, if you define a new `genKey_*` functions in the plugin file. The default `genKey_*` functions are defined in `plugins/default_keygen.cpp` and their interfaces are declared in `plugins/default_keygen.h`.
 * The `early_stop_pkts` (per pcap file) field in `config.json` can be used to limit the number of packets to be processed for each file. If the field is set to `-1`, then the early stopping will not work. If the field is set to `0`, no files will not be processed and `fpnt` will be terminated. If the field has positive values, the early stopping will work.

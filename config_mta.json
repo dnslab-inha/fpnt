@@ -1,12 +1,12 @@
 {
     "multiprocessing": true,
-    "max_concurrency": 32,    
+    "max_concurrency": 32,
     "input_pcap_path": "./input_mta/",
     "sort_by_filesize": false,
     "output_path": "output_mta_unsorted",
     "output_type": "csv",
     "output_stdout_fileinfo": false,
-    "output_stdout_print_granularities": "",    
+    "output_stdout_print_granularities": "",
     "plugins_path": "./build/_deps/fpnt-build/plugins/libFPNT_PLUGINS.so",
     "force_remove": true,
     "dfref_path": "dfref",
@@ -21,6 +21,9 @@
     "tshark_option": "-V",
     "fpnt_tshark_error_log": "/tmp/fpnt_tshark_err.log",
     "log_numbering_concurrency": true,
-    "_comment1": "output directory must be an empty directory. otherwise, it will be deleted.",
-    "_comment2": "early_stop_pkts will not work if it is -1"
+    "_comment_general2": "output directory must be an empty directory. otherwise, it will be deleted.",
+    "_comment_max_concurrency": "if multiprocessing is false, max_concurrency does not work.",
+    "_comment_sort_by_filesize": "if false, PCAP files in the input_pcap_paths will be sorted by name.",
+    "_comment_dfref": "dfref is not available in the repository. you should execute crawl_dfref.py for web crawling to obtain dfref.",
+    "_comment_early_stop_pkts": "early_stop_pkts will not work if it is -1"
 }
