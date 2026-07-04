@@ -1,5 +1,19 @@
-/** @page about About
-  @section doc ModernCppStarter Documentation 
-  This is the auto-generated documentation for the initial project of the ModernCppStarter.
-  It shows how we can use Doxygen to automatically build a browsable documentation for your projects.
+/** @page about About fpnt
+
+`fpnt` is an open-source C++ framework designed for flexible and rapid network traffic analysis (NTA) preprocessing. 
+
+While network traffic analysis increasingly requires diverse features across different classification granularities, existing preprocessing tools often suffer from rigid data structures, limited protocol support, or high memory overhead when handling large-scale features. `fpnt` bridges the gap between raw traffic data and high-performance machine learning workflows by decoupling feature extraction logic from the underlying packet parsing.
+
+@section design_goals Design Goals
+
+`fpnt` is designed as a rapid, code-reusable development framework based on three primary design goals:
+
+1. **Rapid prototyping of custom feature extractors**: Adding a new protocol-specific feature in existing tools often requires modifying the core engine or writing a dedicated plugin (typically 50-200+ Lines of Code). `fpnt` provides a zero-LoC prototyping experience using a CSV schema-driven configuration. It leverages `tshark` as the internal protocol dissector, ensuring deep protocol visibility, cross-platform portability, and reproducible feature extraction.
+2. **Support for multi-level traffic granularity**: `fpnt` is designed to export traffic data records at varying levels of granularity (e.g., packet, flow, flowset). Both the `tshark` output and the schema for each subsequent granularity level are configurable via simple CSV files.
+3. **Function-based plugin architecture**: The framework supports dynamic loading of shared object (`.so`) files containing custom preprocessing (`P_*`) and key generation (`genKey_*`) functions. Researchers can construct per-field preprocessing pipelines without modifying the core source code.
+
+@section non_goals Limitations and Scope
+- **Not for Real-time Line-rate Monitoring**: `fpnt` focuses on file-level multiprocessing for efficient *offline* analysis. It is designed to accelerate the prototyping phase of network research before deploying highly optimized low-level implementations (e.g., using DPDK or P4).
+- **Memory Consumption Trade-offs**: The multi-granularity processing is highly flexible and maintains intermediate results (e.g., packet-level data) in memory. This inherently consumes more memory space compared to highly optimized, fixed-state exporters.
+
 */

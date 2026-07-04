@@ -1,0 +1,63 @@
+/** @page building Building and Installation
+
+@tableofcontents
+
+@section build_requirements Requirements
+To build `fpnt`, you need to install `cmake` and a modern C++ compiler (e.g., `gcc`). In Ubuntu, you can install them using:
+
+@code{.sh}
+sudo apt install cmake build-essential -y
+@endcode
+
+@section build_modes Build Modes
+You can build the `fpnt` source code in either Debug mode or Release mode.
+
+@subsection debug_mode Debug Mode
+Debug mode provides detailed output during execution.
+
+@code{.sh}
+mkdir build
+cmake -DCMAKE_BUILD_TYPE=Debug -S. -Bbuild
+cmake --build ./build --config Debug
+@endcode
+
+@subsection release_mode Release Mode
+`fpnt` built in Release mode prints minimal output during execution for maximum performance.
+
+@code{.sh}
+mkdir build
+cmake -DCMAKE_BUILD_TYPE=Release -S. -Bbuild
+cmake --build ./build --config Release
+@endcode
+
+@section installation Installation (Recommended)
+If you want to install `fpnt` in your home directory, use the following commands. It will install into `$HOME/fpnt_release`.
+
+@code{.sh}
+sudo cmake --build build --target install
+cd $HOME/fpnt_release
+@endcode
+
+If you want to change the root directory of `fpnt` to `path-to-fpnt-root`, use the following command for installing `fpnt`:
+
+@code{.sh}
+sudo cmake --build build --target install -DCMAKE_INSTALL_PREFIX=path-to-fpnt-root
+cd path-to-fpnt-root
+@endcode
+
+@section execution Running FPNT
+After copying your pcap files into the `input_mta` subdirectory, you can run `fpnt` with the default MTA configuration.
+
+@code{.sh}
+mkdir input_mta
+cp $HOME/traffic.pcap ./input_mta/
+fpnt
+@endcode
+
+If you have not installed `fpnt`, you can run the executable directly from the build directory:
+
+@code{.sh}
+build/standalone/fpnt [OPTIONS]
+@endcode
+
+*/

@@ -1,0 +1,40 @@
+/** @page configuration Configuration
+
+@tableofcontents
+
+`fpnt` behavior is heavily driven by its configuration file, typically named `config.json`.
+
+@section config_profiles Configuration Profiles
+We provide several template configurations for different NTA research contexts.
+
+@subsection mta_profile Malware Traffic Analysis (MTA)
+Designed for traditional L3/L4/L7 encrypted network traffic analysis. In encrypted traffic classification, deep learning models often rely on multi-granular and channel-level features since traditional payload inspection fails. The MTA configurations extract TLS-related metadata (e.g., ciphersuites, extensions, certificates) and Channel Sequences (like SPLT: Sequence of Packet Length and Time).
+- **`config_mta.json`**: Default flow-based analysis covering `pkt`, `flow`, and `flowset`. It uses `tcp||udp` for filtering and `genKey_flow_default` to group IPv4/IPv6 flows using a standard 4-tuple.
+- **`config_mta-5tuple.json`**: Uses strict 5-tuple matching for flows (`genKey_flow_default_5tuple`).
+- **`config_mta-ipv4.json`**: Restricts flow key generation to IPv4 only (`genKey_flow_ipv4`).
+- **`config_mta-comparison.json`**: A lightweight config outputting only `pkt` and `flow` granularities.
+
+@subsection bfm_profile Beamforming Feedback Matrix (BFM)
+Designed to extract physical layer Wi-Fi features for wireless network sensing (e.g., DeepCSI datasets for respiration sensing and trajectory tracking). BFM is included in IEEE 802.11 management frames, meaning it lacks higher-layer data. 
+- **Granularities**: `pkt`, `bfm`
+- **Key Generators**: Uses `genKey_bfm_default` to group packets by BFM events.
+- **TShark Filter**: Uses `wlan.vht.compressed_beamforming_report` to extract decoded BFM byte sequences directly from VHT CBR frames.
+- **Preprocessing Plugins**: `fpnt` provides specialized parsing plugins like `P_fast_bfm_fill()` and `P_bfm_fill()` to easily decode and extract specific orthogonal subcarrier feedback angles without requiring extensive Python/C++ logic.
+
+@section config_fields Key Configuration Fields
+- `multiprocessing`: Enables/disables parsing multiple PCAP files concurrently.
+- `output_type`: Defines the output format. Currently only `csv` is supported.
+- `plugins_path`: Path to the compiled `libFPNT_PLUGINS.so`.
+- `early_stop_pkts`: Limits the number of packets processed per PCAP file. `-1` disables early stopping.
+- `tshark_displayfiler`: Controls `tshark`'s display filter (e.g., `-Y "tcp"`).
+- `tshark_option`: Additional arguments passed to the `tshark` process.
+- `fpnt_tshark_error_log`: Path to store the standard error output of `tshark`.
+
+@section csv_configs CSV Configuration Files
+`fpnt` requires several CSV files for specifying the fields to extract and preprocess.
+- `config_*/input_tshark.csv`: Specifies `tshark`-decoded input features to extract for each packet.
+- `config_*/output_pkt.csv`: Specifies the output features for the `pkt` granularity and the preprocessing `P_*` functions to apply.
+- `config_*/output_flow.csv`: Specifies features for the `flow` granularity.
+- `config_*/output_flowset.csv`: Specifies features for the `flowset` granularity.
+
+*/

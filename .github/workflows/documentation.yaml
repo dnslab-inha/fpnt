@@ -1,5 +1,9 @@
 name: Documentation
 
+# 파일 최상단 또는 특정 job 내부에 추가
+permissions:
+  contents: write
+
 on:
   push:
     tags:
@@ -7,7 +11,7 @@ on:
 
 env:
   CPM_SOURCE_CACHE: ${{ github.workspace }}/cpm_modules
-
+  
 jobs:
   build:
     name: Build and publish documentation

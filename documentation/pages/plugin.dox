@@ -1,0 +1,131 @@
+/** @page plugin_api Plugin API
+
+@tableofcontents
+
+`fpnt` achieves its zero-LoC extensibility through a dynamic function-based plugin architecture. The framework dynamically loads shared object (`.so`) files containing custom C++ functions for preprocessing data and generating keys. This page explains how to write these plugins, utilize them in CSV schemas, and best practices.
+
+@section overview Overview of the Plugin System
+When `fpnt` is executed, it loads a shared library (usually `libFPNT_PLUGINS.so`). Inside this library, `fpnt` looks for specific C-linkage functions (`extern "C"`) that match the required signatures. There are two primary types of plugin functions:
+1. **Key Generators (`genKey_*`)**: Define how packets are aggregated into higher-level granularities (e.g., flows, flowsets).
+2. **Preprocessing Functions (`P_*`)**: Define how to extract, transform, or aggregate features for a specific record.
+
+With the v0.40 update, the framework introduced an **Index-Based API (`P_*_idx`)** for preprocessing functions to bypass slow string lookups and instead use direct array indexing, significantly improving throughput.
+
+@section key_gen Key Generation Functions
+Key generators determine how records are grouped. Every packet parsed from `tshark` is passed to the key generators for the configured granularity levels (e.g., flow, flowset).
+
+@subsection keygen_signature Function Signature
+
+@code{.cpp}
+extern "C" void genKey_flow_default(
+    fpnt::PluginContext& context,
+    const std::vector<std::string>& parent_values,
+    std::string& generated_key,
+    int64_t pkt_idx
+);
+@endcode
+
+- `context`: Provides access to the `Dispatcher` and current state.
+- `parent_values`: If this granularity level depends on a parent level, its values are passed here.
+- `generated_key`: The output parameter. You must assign the resulting key string to this variable. If you assign an empty string, the packet is ignored for this granularity level.
+- `pkt_idx`: The direct array index of the current packet record in the `Dispatcher`'s memory.
+
+@subsection keygen_example Example: A Simplified 5-tuple Flow Key
+To group packets by a standard 5-tuple (Source IP, Destination IP, Source Port, Destination Port, Protocol):
+
+@code{.cpp}
+extern "C" void genKey_flow_5tuple(fpnt::PluginContext& ctx, const std::vector<std::string>& parent, std::string& key, int64_t pkt_idx) {
+    nlohmann::json& pkt = ctx.dispatcher->getRecordByIdx(0, pkt_idx); // 0 is packet level
+    
+    std::string sip = pkt["ip.src"].is_string() ? pkt["ip.src"].get<std::string>() : "";
+    std::string dip = pkt["ip.dst"].is_string() ? pkt["ip.dst"].get<std::string>() : "";
+    std::string sport = pkt["tcp.srcport"].is_string() ? pkt["tcp.srcport"].get<std::string>() : "";
+    std::string dport = pkt["tcp.dstport"].is_string() ? pkt["tcp.dstport"].get<std::string>() : "";
+    std::string proto = pkt["ip.proto"].is_string() ? pkt["ip.proto"].get<std::string>() : "";
+    
+    // Create a bidirectional key
+    if (sip > dip) {
+        std::swap(sip, dip);
+        std::swap(sport, dport);
+    }
+    
+    key = sip + "," + dip + "," + sport + "," + dport + "," + proto;
+}
+@endcode
+
+@section prep_funcs Preprocessing Functions
+Preprocessing functions mutate or aggregate features. They are executed in the order defined in the CSV schemas.
+
+@subsection prep_signature Index-Based API (`P_*_idx`) Signature
+
+@code{.cpp}
+extern "C" void P_math_add_idx(fpnt::PluginContext& ctx);
+@endcode
+Although the signature takes only the `PluginContext`, the context contains the pre-resolved indices:
+- `ctx.current_idx`: The index of the record currently being processed.
+- `ctx.target_idx`: The field index where the result should be stored.
+- `ctx.args_idx`: A `std::vector<int>` containing the resolved indices of the arguments provided in the CSV.
+- `ctx.getChildIdxs()`: Returns the indices of all child records (e.g., if processing a flow, it returns the indices of all packets belonging to this flow).
+
+@subsection prep_example Example: Child Sum
+
+@code{.cpp}
+extern "C" void P_childsum_d_idx(fpnt::PluginContext& ctx) {
+    double result = 0;
+    int target_field_idx = ctx.args_idx[0]; // The field index in the child records
+
+    for (size_t child_idx : ctx.getChildIdxs()) {
+        nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+        // Assuming the child record's field is stored as a string or number
+        if (!cnt[target_field_idx].is_null()) {
+            std::string val_str = cnt[target_field_idx].get<std::string>();
+            result += std::stod(val_str);
+        }
+    }
+    
+    // Store the aggregated result
+    ctx.dispatcher->setRecordByIdx(ctx.current_idx, ctx.target_idx, std::to_string(result));
+}
+@endcode
+
+@section common_funcs Commonly Used P_*() Functions
+The framework comes with several built-in mathematical and utility plugins.
+
+- **Aggregation (Child to Parent)**
+  - `P_childsum_ll_idx` / `P_childsum_d_idx`: Sums integer/double values from all child records.
+  - `P_childmean_idx`: Calculates the mean of child values.
+  - `P_childstdev_idx`: Calculates the sample standard deviation of child values.
+  - `P_childmax_d_idx` / `P_childmin_d_idx`: Finds the maximum/minimum double value among children.
+- **Math Operations**
+  - `P_math_add_idx`, `P_math_sub_idx`, `P_math_mul_idx`, `P_math_div_idx`: Performs basic arithmetic on fields within the current record.
+- **Sequence Generation**
+  - `P_seq_idx`: Collects a specific field from all child records and formats it as a comma-separated sequence string (e.g., for SPLT extraction).
+
+@section csv_usage Specifying Plugins in CSV
+In your schema CSV files (e.g., `output_pkt.csv`, `output_flow.csv`), you define which functions to use and their corresponding options. The functions and their options are written in separate columns.
+
+**Syntax Rules:**
+- **Multiple Functions**: You can apply multiple preprocessing functions sequentially to a single output field. Functions are separated by semicolons (`;`) in the `preprocessing_functions` column.
+- **Options/Arguments**: The corresponding arguments for each function are written in the `options` (or `arguments`) column, also separated by semicolons (`;`) in the exact same order.
+- **Single Argument Limit**: Currently, each preprocessing function accepts only **one** argument. 
+
+**Example `output_pkt.csv` snippet:**
+
+@code{.txt}
+"protocol","Protocol","P_cpy;P_fill1","ip.proto;ipv6.nxt"
+@endcode
+
+In this example:
+1. The first function `P_cpy` is executed with the argument `ip.proto`.
+2. The second function `P_fill1` is then executed with the argument `ipv6.nxt`.
+This sequential execution allows for building a per-field preprocessing pipeline directly within the CSV schema.
+
+@section precautions Precautions and Best Practices
+
+1. **Handling Missing Data**: Not all packets contain all fields (e.g., a UDP packet lacks TCP flags). Always check if a field exists or `is_null()` before accessing it in a plugin to prevent crashes.
+2. **Type Casting (`std::stod`, `std::stoll`)**: When converting strings to numbers, ensure the string is not empty. C++ `std::stod` throws an `std::invalid_argument` exception on empty strings, which will crash the `fpnt` process. Use wrapper functions or check `!str.empty()` beforehand.
+3. **Stateless Plugins**: `fpnt` uses file-level multiprocessing via `fork()`. This means global variables are memory-isolated between different PCAP files. However, within a single PCAP processing pipeline, plugins must remain stateless or cleanly reset their state, as they are invoked repeatedly for every record.
+4. **Memory Leaks**: When writing custom C++ plugins, avoid allocating raw memory (`new`, `malloc`) without freeing it. Use standard C++ containers (`std::vector`, `std::string`) or smart pointers.
+5. **Index Validity**: When using the `_idx` API, rely exclusively on `ctx.args_idx` and `ctx.target_idx`. Do not hardcode indices, as the field indices are dynamically assigned by the `Dispatcher` based on the CSV schema at runtime.
+
+*/

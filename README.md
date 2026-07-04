@@ -12,8 +12,9 @@ The v0.40 updates focus on **massive throughput improvements** and **Plugin API 
 
 To build `fpnt`, you need to install `cmake` and compiler (e.g., `gcc`). The following command installs them in Ubuntu:
 
-```
+```bash
 sudo apt install cmake build-essential -y
+
 ```
 
 You can build the `fpnt` source code in either Debug mode or Release mode.
@@ -22,23 +23,25 @@ You can build the `fpnt` source code in either Debug mode or Release mode.
 
 Debug mode can provide a detailed output during execution.
 
-```
+```bash
 mkdir build
 cmake -DCMAKE_BUILD_TYPE=Debug -S./all -Bbuild
 cmake --build ./build --config Debug
+
 ```
 
 ### Release mode
 
 `fpnt` built in Release mode prints minimal output during execution.
 
-```
+```bash
 mkdir build
 cmake -DCMAKE_BUILD_TYPE=Release -S./all -Bbuild
 cmake --build ./build --config Release
+
 ```
 
-### Locations of important files
+### Locations of important files {#locations-of-important-files}
 
 If you follow the above instructions in either mode, the standlone `fpnt` program will be stored as `build/standalone/fpnt` (or `build/_deps/fpnt-build/standalone/fpnt` when using ninja or similar low-level build systems). You need to aware a plugin file (*i.e.*, a shared object file in Unix-like systems) stored as `build/plugins/libFPNT_PLUGINS.so` (or `build/_deps/fpnt-build/plugins/libFPNT_PLUGINS.so` when using ninja or similar low-level build systems), since this file is required for executing `fpnt`, while its location can be changed. For more information, check [Requirements](#requirements) section.
 
@@ -46,52 +49,63 @@ If you follow the above instructions in either mode, the standlone `fpnt` progra
 
 If you want to install `fpnt` in your home directory, you can use the following command. This command will install `fpnt` into `$HOME/fpnt_release`.
 
-```
+```bash
 sudo cmake --build build --target install
 cd $HOME/fpnt_release
+
 ```
 
 If you want to change the root directory of `fpnt` to `path-to-fpnt-root`, you can use the following command for installing `fpnt`.
 
-```
+```bash
 sudo cmake --build build --target install -DCMAKE_INSTALL_PREFIX=path-to-fpnt-root
 cd path-to-fpnt-root
+
 ```
 
-After copying your pcap files into `input_mta` subdirectory, you can run `fpnt with the default mta configruation.
-```
+After copying your pcap files into `input_mta` subdirectory, you can run `fpnt` with the default mta configuration.
+
+```bash
 mkdir input_mta
 cp $HOME/2013-06-18-Neutrino-EK-traffic.pcap ./input_mta/
 fpnt (or ./fpnt if you does not use sudo when installing)
+
 ```
 
 ## How to execute (without install)
 
 To execute `fpnt`, several requirements should be satisfied, while some of them can be configured through `config.json`.
 
-### Requirements
+### Requirements {#requirements}
 
 `fpnt` requires to install `tshark` for execution. You can install `tshark` in Ubuntu using the following command. If the `tshark` path is different, you need to change `tshark_path` field in `config.json`.
 
-```
+```bash
 sudo apt install tshark -y
+
 ```
 
 `fpnt` requires to have a JSON file called `config.json` in the current working directory (CWD). A template `config.json` is provided in the root source directory of `fpnt`.
 
 `fpnt` requires to have a directory called `dfref` to validate `tshark`-decoded input feature configuration. This directory contains HTML files referred by `https://www.wireshark.org/docs/dfref/`. You can crawl the HTML files by executing the given python crawler `crawl_dfref.py`. Note that this python file requires [Python 3](https://www.python.org/downloads/), [Requests](https://requests.readthedocs.io/en/latest/), and [BeautifulSoup 4](https://pypi.org/project/beautifulsoup4/). While the following command is NOT recommended, you can install Python 3, Requests, and BeautifulSoup 4 in Ubuntu using the following command:
-```
+
+```bash
 sudo apt install python3 python3-requests python3-bs4 -y
+
 ```
 
 Note that if you installed Python 3 and `pip`, you can install Requests, and BeautifulSoup 4 using the following command:
-```
+
+```bash
 pip install bs4 requests
+
 ```
 
 You can now crawl the HTML files:
-```
+
+```bash
 python3 ./crawl_dfref.py
+
 ```
 
 Your packet capture files should be located in the `input_pcap_path` directory (e.g., `input_mta`, `input_bfm`) and the resulting CSV files will be located in the `output_path` directory (e.g., `output`). If a packet capture file is located in a subdirectory of the `input_pcap_path` directory, the output CSV file will be located, following its relative path to the `output_path` directory. You can change the `input_pcap_path` and `output_path` locations from the corresponding fields in `config.json`. Note that when `fpnt` is executed, the `output_path` directory will be removed if it exists and the `force_remove` field in `config.json` is set to `true`. If the `force_remove` field is set to `false`, the `output_path` directory will not be removed but if it exists, `fpnt` will be terminated without processing.
@@ -105,11 +119,13 @@ Your packet capture files should be located in the `input_pcap_path` directory (
 
 To execute `fpnt` executable file, the plugin file `libFPNT_PLUGINS.so` is required. As described in [Locations of important files](#locations-of-important-files) section, building `fpnt` with build directory `build` generates `build/plugins/libFPNT_PLUGINS.so`. This plugin file contains `genKey_*` functions for key generation and `P_*` functions for preprocessing of each output field. These functions are not available in the `fpnt` executable file and will be dynamically loaded when `fpnt` is executed. When the location is changed, you need to change the `plugins_path` field in `config.json`.
 
-### Executing the `fpnt` executable file
+### Executing the fpnt executable file
 
 If you do not move the executable file, you can execute `fpnt` using the following command in the root directory of the repository:
+
 ```bash
 build/_deps/fpnt-build/standalone/fpnt [OPTIONS]
+
 ```
 
 ### Command-line Options
@@ -126,18 +142,18 @@ build/_deps/fpnt-build/standalone/fpnt [OPTIONS]
 If you want to execute `fpnt` in a specific directory without specifying the options above, make sure `config.json` is available in the current directory and you must modify several directory/file paths in `config.json` appropriately.
 
 
-## Configuration Profiles (`config_bfm.json` vs `config_mta*.json`)
+## Configuration Profiles (config_bfm.json vs config_mta*.json)
 
 `fpnt` behavior is heavily driven by its configuration file. We provide several template configurations for different analysis goals:
 
-### 1. `config_bfm.json` (Beamform Feedback Matrix Extraction)
+### 1. config_bfm.json (Beamform Feedback Matrix Extraction)
 Designed for the DeepCSI dataset to extract physical layer Wi-Fi features.
 * **Granularities**: `pkt`, `bfm`
 * **Key Generators**: Uses `genKey_bfm_default` to group packets by BFM events.
 * **TShark Filter**: `wlan.fc.type_subtype == 0x14 || wlan.vht.mimo_control.nc != 0` to isolate VHT/MIMO Wi-Fi frames.
 * **Use Case**: Extracts channel state information (CSI) and beamforming feedback matrices from raw Wi-Fi traces.
 
-### 2. `config_mta*.json` (Malware/General Traffic Analysis)
+### 2. config_mta*.json (Malware/General Traffic Analysis)
 Designed for traditional L3/L4/L7 network traffic analysis (MTA).
 * **`config_mta.json`**: Default flow-based analysis covering `pkt`, `flow`, and `flowset`. It uses `tcp||udp` for filtering and `genKey_flow_default` to group IPv4/IPv6 flows using 4-tuple (src_ip, dst_ip, src_port, dst_port).
 * **`config_mta-5tuple.json`**: Uses strict 5-tuple matching for flows (`genKey_flow_default_5tuple`) to distinguish flows sharing the same IPv4/IPv6 endpoints but different protocols.
@@ -154,6 +170,7 @@ cmake --build ./build --target format-cpp
 
 # Format CMakeLists.txt (requires cmake-format)
 cmake --build ./build --target format-cmake
+
 ```
 
 ## More on configurations
@@ -166,3 +183,39 @@ cmake --build ./build --target format-cmake
 * The `tshark_option` field in `config.json` can be used to configure `tshark` command, but typically it is not recommended to change the field value, since such change generates unexpected output results from the `tshark` command execution.
 * The `fpnt_tshark_error_log` field in `config.json` specifies the name of `tshark`'s error log. If `fpnt` does not work correctly, it is recommended to check the error log file.
 * When multiprocessing is turned on, storing all errors in a single error log file makes analysis more difficult. The `log_numbering_concurrency` field in `config.json` can be useful, as it generates multiple error log files tagged with their respective process IDs.
+
+## Building the Documentation
+
+The `fpnt` framework includes a comprehensive documentation system powered by Doxygen and the `m.css` theme. 
+
+### Prerequisites
+
+To generate the documentation, you need to install `doxygen` and a few Python packages required by `m.css` (`jinja2` and `Pygments`).
+
+On macOS:
+
+```bash
+brew install doxygen
+pip3 install jinja2 Pygments --break-system-packages
+
+```
+
+On Ubuntu/Linux:
+
+```bash
+sudo apt install doxygen -y
+pip3 install jinja2 Pygments
+
+```
+
+### Generation Command
+
+You can build the documentation using CMake. We recommend using a separate build directory (e.g., `build-docs`) to avoid conflicts with the main project build cache.
+
+```bash
+cmake -Sdocumentation -Bbuild-docs
+cmake --build build-docs --target GenerateDocs
+
+```
+
+Once the build is complete, the generated HTML documentation will be available in the `build-docs/doxygen/html/` directory. You can open `build-docs/doxygen/html/index.html` in any web browser to view the documentation.
