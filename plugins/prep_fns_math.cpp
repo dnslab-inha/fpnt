@@ -13,7 +13,7 @@
  */
 extern "C" void P_max_d(fpnt::PluginContext& ctx) {
   nlohmann::json& cnt = ctx.getRecord();
-  std::string_view vectorString = cnt[ctx.getOption()].get_ref<const std::string&>();
+  std::string vectorString = (cnt[ctx.getOption()].is_string() ? cnt[ctx.getOption()].get<std::string>() : "");
   std::vector<double> values = stringToVector(vectorString);
 
   double result = std::numeric_limits<double>::lowest();
@@ -35,7 +35,7 @@ extern "C" void P_max_d(fpnt::PluginContext& ctx) {
  */
 extern "C" void P_min_d(fpnt::PluginContext& ctx) {
   nlohmann::json& cnt = ctx.getRecord();
-  std::string_view vectorString = cnt[ctx.getOption()].get_ref<const std::string&>();
+  std::string vectorString = (cnt[ctx.getOption()].is_string() ? cnt[ctx.getOption()].get<std::string>() : "");
   std::vector<double> values = stringToVector(vectorString);
 
   double result = std::numeric_limits<double>::max();
@@ -91,11 +91,11 @@ extern "C" void P_childsum_ll(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
     auto& val = cnt[fieldname];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       long long temp = atoll(val_str.c_str());
 
       if (check_dir) {  // we should check direction
-        long long dir_value = atoll(cnt["__dir"].get_ref<const std::string&>().c_str());
+        long long dir_value = atoll((cnt["__dir"].is_string() ? cnt["__dir"].get<std::string>() : "").c_str());
         // different direction means no addition
         if (dir && dir_value < 0) {
           temp = 0;
@@ -125,7 +125,7 @@ extern "C" void P_childsum_d(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       result += atof(val_str.c_str());
     }
   }
@@ -147,7 +147,7 @@ extern "C" void P_childmean(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       result += atof(val_str.c_str());
       count++;
     }
@@ -175,7 +175,7 @@ extern "C" void P_childstdev(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       stat.push_back(cur_value);
       mean += cur_value;
@@ -217,7 +217,7 @@ extern "C" void P_childmax_d(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value > result) result = cur_value;
     }
@@ -239,7 +239,7 @@ extern "C" void P_childmin_d(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value < result) result = cur_value;
     }
@@ -262,7 +262,7 @@ extern "C" void P_childnzmin_d(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value > 0 && cur_value < result) result = cur_value;
     }
@@ -285,7 +285,7 @@ extern "C" void P_childmaxdiff_d(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value > max) max = cur_value;
       if (cur_value < min) min = cur_value;
@@ -308,7 +308,7 @@ extern "C" void P_childmax_ll(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       long long cur_value = atoll(val_str.c_str());
       if (cur_value > result) result = cur_value;
     }
@@ -330,7 +330,7 @@ extern "C" void P_childmin_ll(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecord(child_key);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       long long cur_value = atoll(val_str.c_str());
       if (cur_value < result) result = cur_value;
     }
@@ -383,11 +383,11 @@ extern "C" void P_childsum_ll_idx(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
     auto& val = cnt[fieldname];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       long long temp = atoll(val_str.c_str());
 
       if (check_dir) {  // we should check direction
-        long long dir_value = atoll(cnt["__dir"].get_ref<const std::string&>().c_str());
+        long long dir_value = atoll((cnt["__dir"].is_string() ? cnt["__dir"].get<std::string>() : "").c_str());
         // different direction means no addition
         if (dir && dir_value < 0) {
           temp = 0;
@@ -418,7 +418,7 @@ extern "C" void P_childsum_d_idx(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       result += atof(val_str.c_str());
     }
   }
@@ -441,7 +441,7 @@ extern "C" void P_childmean_idx(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       result += atof(val_str.c_str());
       count++;
     }
@@ -470,7 +470,7 @@ extern "C" void P_childstdev_idx(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       stat.push_back(cur_value);
       mean += cur_value;
@@ -512,7 +512,7 @@ extern "C" void P_childmax_d_idx(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value > result) result = cur_value;
     }
@@ -534,7 +534,7 @@ extern "C" void P_childmin_d_idx(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value < result) result = cur_value;
     }
@@ -557,7 +557,7 @@ extern "C" void P_childnzmin_d_idx(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value > 0 && cur_value < result) result = cur_value;
     }
@@ -580,7 +580,7 @@ extern "C" void P_childmaxdiff_d_idx(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value > max) max = cur_value;
       if (cur_value < min) min = cur_value;
@@ -604,7 +604,7 @@ extern "C" void P_childmax_ll_idx(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       long long cur_value = atoll(val_str.c_str());
       if (cur_value > result) result = cur_value;
     }
@@ -627,7 +627,7 @@ extern "C" void P_childmin_ll_idx(fpnt::PluginContext& ctx) {
     nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
     auto& val = cnt[opt];
     if (!val.is_null()) {
-      const auto& val_str = val.get_ref<const std::string&>();
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       long long cur_value = atoll(val_str.c_str());
       if (cur_value < result) result = cur_value;
     }

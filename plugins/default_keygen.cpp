@@ -8,8 +8,18 @@
 #include <string>
 #include <string_view>
 
+
+static inline std::string safe_get_string(const nlohmann::json& pkt, const std::string& key) {
+    if (pkt.contains(key)) {
+        if (pkt[key].is_string()) return pkt[key].get<std::string>();
+        if (pkt[key].is_number()) return pkt[key].dump();
+    }
+    return "";
+}
+
+
 namespace {
-  inline int parse_port(std::string_view s) {
+  inline int parse_port(std::string s) {
     int port = 0;
     if (!s.empty()) {
       std::from_chars(s.data(), s.data() + s.size(), port);
@@ -57,29 +67,29 @@ public:
     std::string cur_key;
     nlohmann::json key_data;
 
-    std::string_view cur_srcport;
-    std::string_view cur_dstport;
+    std::string cur_srcport;
+    std::string cur_dstport;
     if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
-        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+        && !safe_get_string(pkt, "tcp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "tcp.srcport");
+      cur_dstport = safe_get_string(pkt, "tcp.dstport");
     } else if (pkt.contains("udp.srcport") && !pkt["udp.srcport"].is_null()
-               && !pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+               && !safe_get_string(pkt, "udp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "udp.srcport");
+      cur_dstport = safe_get_string(pkt, "udp.dstport");
     } else {
       cur_srcport = "0";
       cur_dstport = "0";
     }
 
-    std::string_view cur_src = pkt["_ws.col.def_src"].get_ref<const std::string&>();
-    std::string_view cur_dst = pkt["_ws.col.def_dst"].get_ref<const std::string&>();
+    std::string cur_src = safe_get_string(pkt, "_ws.col.def_src");
+    std::string cur_dst = safe_get_string(pkt, "_ws.col.def_dst");
 
     size_t l;
-    if ((l = cur_src.find(',')) != std::string_view::npos) {
+    if ((l = cur_src.find(',')) != std::string::npos) {
       cur_src = cur_src.substr(0, l);
     }
-    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+    if ((l = cur_dst.find(',')) != std::string::npos) {
       cur_dst = cur_dst.substr(0, l);
     }
 
@@ -88,6 +98,10 @@ public:
     // if the port number address is the same (found in many UDP cases),
     //    we assume that the smaller IP address is the server
     // We use the client-first, server-second pair
+    if (cur_src.empty() || cur_dst.empty()) {
+      return key_data;
+    }
+
 
     int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
     if (keycomp == 0)  // the port number same case
@@ -98,9 +112,9 @@ public:
         if (inet_pton(AF_INET6, std::string(cur_src).c_str(), &src_n) != 1
             || inet_pton(AF_INET6, std::string(cur_dst).c_str(), &dst_n) != 1) {
           std::cerr << "Invalid IPv6 address" << std::endl;
-          std::cerr << pkt["idx"].get_ref<const std::string&>() << ","
-                    << pkt["_ws.col.def_src"].get_ref<const std::string&>() << ","
-                    << pkt["_ws.col.def_dst"].get_ref<const std::string&>() << std::endl;
+          std::cerr << pkt["idx"].get<size_t>() << ","
+                    << safe_get_string(pkt, "_ws.col.def_src") << ","
+                    << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
           exit(EXIT_FAILURE);
         }
         if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
@@ -109,9 +123,9 @@ public:
         if (inet_pton(AF_INET, std::string(cur_src).c_str(), &src_n) != 1
             || inet_pton(AF_INET, std::string(cur_dst).c_str(), &dst_n) != 1) {
           std::cerr << "Invalid IPv4 address" << std::endl;
-          std::cerr << pkt["idx"].get_ref<const std::string&>() << ","
-                    << pkt["_ws.col.def_src"].get_ref<const std::string&>() << ","
-                    << pkt["_ws.col.def_dst"].get_ref<const std::string&>() << std::endl;
+          std::cerr << pkt["idx"].get<size_t>() << ","
+                    << safe_get_string(pkt, "_ws.col.def_src") << ","
+                    << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
           exit(EXIT_FAILURE);
         }
         // Compare in network byte order (Big Endian)
@@ -161,29 +175,29 @@ public:
     std::string cur_key;
     nlohmann::json key_data;
 
-    std::string_view cur_srcport;
-    std::string_view cur_dstport;
+    std::string cur_srcport;
+    std::string cur_dstport;
     if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
-        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+        && !safe_get_string(pkt, "tcp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "tcp.srcport");
+      cur_dstport = safe_get_string(pkt, "tcp.dstport");
     } else if (pkt.contains("udp.srcport") && !pkt["udp.srcport"].is_null()
-               && !pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+               && !safe_get_string(pkt, "udp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "udp.srcport");
+      cur_dstport = safe_get_string(pkt, "udp.dstport");
     } else {
       cur_srcport = "0";
       cur_dstport = "0";
     }
 
-    std::string_view cur_src = pkt["_ws.col.def_src"].get_ref<const std::string&>();
-    std::string_view cur_dst = pkt["_ws.col.def_dst"].get_ref<const std::string&>();
+    std::string cur_src = safe_get_string(pkt, "_ws.col.def_src");
+    std::string cur_dst = safe_get_string(pkt, "_ws.col.def_dst");
 
     size_t l;
-    if ((l = cur_src.find(',')) != std::string_view::npos) {
+    if ((l = cur_src.find(',')) != std::string::npos) {
       cur_src = cur_src.substr(0, l);
     }
-    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+    if ((l = cur_dst.find(',')) != std::string::npos) {
       cur_dst = cur_dst.substr(0, l);
     }
 
@@ -193,15 +207,23 @@ public:
     //    we assume that the smaller IP address is the server
     // We use the client-first, server-second pair
 
-    std::string_view ip_proto = pkt["ip.proto"].get_ref<const std::string&>();
-
+    std::string ip_proto;
+    if (pkt.contains("ip.proto") && !pkt["ip.proto"].is_null()) {
+      ip_proto = safe_get_string(pkt, "ip.proto");
+    }
     if (ip_proto.empty()) {
-      ip_proto = pkt["ipv6.nxt"].get_ref<const std::string&>();
+      if (pkt.contains("ipv6.nxt") && !pkt["ipv6.nxt"].is_null()) {
+        ip_proto = safe_get_string(pkt, "ipv6.nxt");
+      }
     }
 
-    if ((l = ip_proto.find(',')) != std::string_view::npos) {
+    if ((l = ip_proto.find(',')) != std::string::npos) {
       ip_proto = ip_proto.substr(0, l);
     }
+    if (cur_src.empty() || cur_dst.empty()) {
+      return key_data;
+    }
+
 
     int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
     if (keycomp == 0)  // the port number same case
@@ -212,9 +234,9 @@ public:
         if (inet_pton(AF_INET6, std::string(cur_src).c_str(), &src_n) != 1
             || inet_pton(AF_INET6, std::string(cur_dst).c_str(), &dst_n) != 1) {
           std::cerr << "Invalid IPv6 address" << std::endl;
-          std::cerr << pkt["idx"].get_ref<const std::string&>() << ","
-                    << pkt["_ws.col.def_src"].get_ref<const std::string&>() << ","
-                    << pkt["_ws.col.def_dst"].get_ref<const std::string&>() << std::endl;
+          std::cerr << pkt["idx"].get<size_t>() << ","
+                    << safe_get_string(pkt, "_ws.col.def_src") << ","
+                    << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
           exit(EXIT_FAILURE);
         }
         if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
@@ -223,9 +245,9 @@ public:
         if (inet_pton(AF_INET, std::string(cur_src).c_str(), &src_n) != 1
             || inet_pton(AF_INET, std::string(cur_dst).c_str(), &dst_n) != 1) {
           std::cerr << "Invalid IPv4 address" << std::endl;
-          std::cerr << pkt["idx"].get_ref<const std::string&>() << ","
-                    << pkt["_ws.col.def_src"].get_ref<const std::string&>() << ","
-                    << pkt["_ws.col.def_dst"].get_ref<const std::string&>() << std::endl;
+          std::cerr << pkt["idx"].get<size_t>() << ","
+                    << safe_get_string(pkt, "_ws.col.def_src") << ","
+                    << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
           exit(EXIT_FAILURE);
         }
         // Compare in network byte order (Big Endian)
@@ -281,12 +303,12 @@ public:
     std::string cur_key;
     nlohmann::json key_data;
 
-    std::string_view cur_srcport;
-    std::string_view cur_dstport;
+    std::string cur_srcport;
+    std::string cur_dstport;
     if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
-        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+        && !safe_get_string(pkt, "tcp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "tcp.srcport");
+      cur_dstport = safe_get_string(pkt, "tcp.dstport");
     } else {
       if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
         std::cerr << "getPktKey: the corresponding input json does not collect udp.srcport and/or "
@@ -298,17 +320,17 @@ public:
             << std::endl;
         exit(EXIT_FAILURE);
       }
-      if (!pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
-        cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
-        cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+      if (!safe_get_string(pkt, "udp.srcport").empty()) {
+        cur_srcport = safe_get_string(pkt, "udp.srcport");
+        cur_dstport = safe_get_string(pkt, "udp.dstport");
       } else {
         cur_srcport = "0";
         cur_dstport = "0";
       }
     }
 
-    std::string_view cur_src = pkt["ip.src"].get_ref<const std::string&>();
-    std::string_view cur_dst = pkt["ip.dst"].get_ref<const std::string&>();
+    std::string cur_src = safe_get_string(pkt, "ip.src");
+    std::string cur_dst = safe_get_string(pkt, "ip.dst");
 
     // if IPv6 address is given... ;<
     if (cur_src.empty() && cur_dst.empty()) {
@@ -317,10 +339,10 @@ public:
     }
 
     size_t l;
-    if ((l = cur_src.find(',')) != std::string_view::npos) {
+    if ((l = cur_src.find(',')) != std::string::npos) {
       cur_src = cur_src.substr(0, l);
     }
-    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+    if ((l = cur_dst.find(',')) != std::string::npos) {
       cur_dst = cur_dst.substr(0, l);
     }
 
@@ -329,6 +351,10 @@ public:
     // if the port number address is the same (found in many UDP cases),
     //    we assume that the smaller IP address is the server
     // We use the client-first, server-second pair
+    if (cur_src.empty() || cur_dst.empty()) {
+      return key_data;
+    }
+
 
     int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
     if (keycomp == 0)  // the port number same case
@@ -375,12 +401,12 @@ public:
     std::string cur_key;
     nlohmann::json key_data;
 
-    std::string_view cur_srcport;
-    std::string_view cur_dstport;
+    std::string cur_srcport;
+    std::string cur_dstport;
     if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
-        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+        && !safe_get_string(pkt, "tcp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "tcp.srcport");
+      cur_dstport = safe_get_string(pkt, "tcp.dstport");
     } else {
       if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
         std::cerr << "getPktKey: the corresponding input json does not collect udp.srcport and/or "
@@ -392,17 +418,17 @@ public:
             << std::endl;
         exit(EXIT_FAILURE);
       }
-      if (!pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
-        cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
-        cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+      if (!safe_get_string(pkt, "udp.srcport").empty()) {
+        cur_srcport = safe_get_string(pkt, "udp.srcport");
+        cur_dstport = safe_get_string(pkt, "udp.dstport");
       } else {
         cur_srcport = "0";
         cur_dstport = "0";
       }
     }
 
-    std::string_view cur_src = pkt["ip.src"].get_ref<const std::string&>();
-    std::string_view cur_dst = pkt["ip.dst"].get_ref<const std::string&>();
+    std::string cur_src = safe_get_string(pkt, "ip.src");
+    std::string cur_dst = safe_get_string(pkt, "ip.dst");
 
     // if IPv6 address is given... ;<
     if (cur_src.empty() && cur_dst.empty()) {
@@ -411,16 +437,19 @@ public:
     }
 
     size_t l;
-    if ((l = cur_src.find(',')) != std::string_view::npos) {
+    if ((l = cur_src.find(',')) != std::string::npos) {
       cur_src = cur_src.substr(0, l);
     }
-    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+    if ((l = cur_dst.find(',')) != std::string::npos) {
       cur_dst = cur_dst.substr(0, l);
     }
 
-    std::string_view ip_proto = pkt["ip.proto"].get_ref<const std::string&>();
+    std::string ip_proto;
+    if (pkt.contains("ip.proto") && !pkt["ip.proto"].is_null()) {
+      ip_proto = safe_get_string(pkt, "ip.proto");
+    }
 
-    if ((l = ip_proto.find(',')) != std::string_view::npos) {
+    if ((l = ip_proto.find(',')) != std::string::npos) {
       ip_proto = ip_proto.substr(0, l);
     }
 
@@ -429,6 +458,10 @@ public:
     // if the port number address is the same (found in many UDP cases),
     //    we assume that the smaller IP address is the server
     // We use the client-first, server-second pair
+    if (cur_src.empty() || cur_dst.empty()) {
+      return key_data;
+    }
+
 
     int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
     if (keycomp == 0)  // the port number same case
@@ -483,33 +516,33 @@ public:
     std::string cur_key;
     nlohmann::json key_data;
 
-    std::string_view cur_srcport;
-    std::string_view cur_dstport;
+    std::string cur_srcport;
+    std::string cur_dstport;
     if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
-        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+        && !safe_get_string(pkt, "tcp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "tcp.srcport");
+      cur_dstport = safe_get_string(pkt, "tcp.dstport");
     } else if (pkt.contains("udp.srcport") && !pkt["udp.srcport"].is_null()
-               && !pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+               && !safe_get_string(pkt, "udp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "udp.srcport");
+      cur_dstport = safe_get_string(pkt, "udp.dstport");
     } else {
       cur_srcport = "0";
       cur_dstport = "0";
     }
 
-    std::string_view cur_src = pkt["_ws.col.def_src"].get_ref<const std::string&>();
-    std::string_view cur_dst = pkt["_ws.col.def_dst"].get_ref<const std::string&>();
+    std::string cur_src = safe_get_string(pkt, "_ws.col.def_src");
+    std::string cur_dst = safe_get_string(pkt, "_ws.col.def_dst");
 
     // fix a bug in tshark
     // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
     // first part of the address
 
     size_t l;
-    if ((l = cur_src.find(',')) != std::string_view::npos) {
+    if ((l = cur_src.find(',')) != std::string::npos) {
       cur_src = cur_src.substr(0, l);
     }
-    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+    if ((l = cur_dst.find(',')) != std::string::npos) {
       cur_dst = cur_dst.substr(0, l);
     }
 
@@ -543,12 +576,12 @@ public:
     std::string cur_key;
     nlohmann::json key_data;
 
-    std::string_view cur_srcport;
-    std::string_view cur_dstport;
+    std::string cur_srcport;
+    std::string cur_dstport;
     if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
-        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+        && !safe_get_string(pkt, "tcp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "tcp.srcport");
+      cur_dstport = safe_get_string(pkt, "tcp.dstport");
     } else {
       if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
         std::cerr << "getPktKey: the corresponding input json does not collect udp.srcport and/or "
@@ -560,17 +593,17 @@ public:
             << std::endl;
         exit(EXIT_FAILURE);
       }
-      if (!pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
-        cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
-        cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+      if (!safe_get_string(pkt, "udp.srcport").empty()) {
+        cur_srcport = safe_get_string(pkt, "udp.srcport");
+        cur_dstport = safe_get_string(pkt, "udp.dstport");
       } else {
         cur_srcport = "0";
         cur_dstport = "0";
       }
     }
 
-    std::string_view cur_src = pkt["ip.src"].get_ref<const std::string&>();
-    std::string_view cur_dst = pkt["ip.dst"].get_ref<const std::string&>();
+    std::string cur_src = safe_get_string(pkt, "ip.src");
+    std::string cur_dst = safe_get_string(pkt, "ip.dst");
 
     // if IPv6 address is given... ;<
     if (cur_src.empty() && cur_dst.empty()) {
@@ -579,10 +612,10 @@ public:
     }
 
     size_t l;
-    if ((l = cur_src.find(',')) != std::string_view::npos) {
+    if ((l = cur_src.find(',')) != std::string::npos) {
       cur_src = cur_src.substr(0, l);
     }
-    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+    if ((l = cur_dst.find(',')) != std::string::npos) {
       cur_dst = cur_dst.substr(0, l);
     }
 
@@ -616,43 +649,43 @@ public:
     std::string cur_key;
     nlohmann::json key_data;
 
-    std::string_view cur_srcport;
-    std::string_view cur_dstport;
+    std::string cur_srcport;
+    std::string cur_dstport;
     if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
-        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+        && !safe_get_string(pkt, "tcp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "tcp.srcport");
+      cur_dstport = safe_get_string(pkt, "tcp.dstport");
     } else if (pkt.contains("udp.srcport") && !pkt["udp.srcport"].is_null()
-               && !pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+               && !safe_get_string(pkt, "udp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "udp.srcport");
+      cur_dstport = safe_get_string(pkt, "udp.dstport");
     } else {
       cur_srcport = "0";
       cur_dstport = "0";
     }
 
-    std::string_view cur_src = pkt["_ws.col.def_src"].get_ref<const std::string&>();
-    std::string_view cur_dst = pkt["_ws.col.def_dst"].get_ref<const std::string&>();
+    std::string cur_src = safe_get_string(pkt, "_ws.col.def_src");
+    std::string cur_dst = safe_get_string(pkt, "_ws.col.def_dst");
 
     // fix a bug in tshark
     // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
     // first part of the address
 
     size_t l;
-    if ((l = cur_src.find(',')) != std::string_view::npos) {
+    if ((l = cur_src.find(',')) != std::string::npos) {
       cur_src = cur_src.substr(0, l);
     }
-    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+    if ((l = cur_dst.find(',')) != std::string::npos) {
       cur_dst = cur_dst.substr(0, l);
     }
 
-    std::string_view ip_proto = pkt["ip.proto"].get_ref<const std::string&>();
+    std::string ip_proto = safe_get_string(pkt, "ip.proto");
 
     if (ip_proto.empty()) {
-      ip_proto = pkt["ipv6.nxt"].get_ref<const std::string&>();
+      ip_proto = safe_get_string(pkt, "ipv6.nxt");
     }
 
-    if ((l = ip_proto.find(',')) != std::string_view::npos) {
+    if ((l = ip_proto.find(',')) != std::string::npos) {
       ip_proto = ip_proto.substr(0, l);
     }
 
@@ -687,12 +720,12 @@ public:
     std::string cur_key;
     nlohmann::json key_data;
 
-    std::string_view cur_srcport;
-    std::string_view cur_dstport;
+    std::string cur_srcport;
+    std::string cur_dstport;
     if (pkt.contains("tcp.srcport") && !pkt["tcp.srcport"].is_null()
-        && !pkt["tcp.srcport"].get_ref<const std::string&>().empty()) {
-      cur_srcport = pkt["tcp.srcport"].get_ref<const std::string&>();
-      cur_dstport = pkt["tcp.dstport"].get_ref<const std::string&>();
+        && !safe_get_string(pkt, "tcp.srcport").empty()) {
+      cur_srcport = safe_get_string(pkt, "tcp.srcport");
+      cur_dstport = safe_get_string(pkt, "tcp.dstport");
     } else {
       if (pkt["udp.srcport"].is_null() || pkt["udp.dstport"].is_null()) {
         std::cerr << "getPktKey: the corresponding input json does not collect udp.srcport and/or "
@@ -704,17 +737,17 @@ public:
             << std::endl;
         exit(EXIT_FAILURE);
       }
-      if (!pkt["udp.srcport"].get_ref<const std::string&>().empty()) {
-        cur_srcport = pkt["udp.srcport"].get_ref<const std::string&>();
-        cur_dstport = pkt["udp.dstport"].get_ref<const std::string&>();
+      if (!safe_get_string(pkt, "udp.srcport").empty()) {
+        cur_srcport = safe_get_string(pkt, "udp.srcport");
+        cur_dstport = safe_get_string(pkt, "udp.dstport");
       } else {
         cur_srcport = "0";
         cur_dstport = "0";
       }
     }
 
-    std::string_view cur_src = pkt["ip.src"].get_ref<const std::string&>();
-    std::string_view cur_dst = pkt["ip.dst"].get_ref<const std::string&>();
+    std::string cur_src = safe_get_string(pkt, "ip.src");
+    std::string cur_dst = safe_get_string(pkt, "ip.dst");
 
     // if IPv6 address is given... ;<
     if (cur_src.empty() && cur_dst.empty()) {
@@ -723,20 +756,20 @@ public:
     }
 
     size_t l;
-    if ((l = cur_src.find(',')) != std::string_view::npos) {
+    if ((l = cur_src.find(',')) != std::string::npos) {
       cur_src = cur_src.substr(0, l);
     }
-    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+    if ((l = cur_dst.find(',')) != std::string::npos) {
       cur_dst = cur_dst.substr(0, l);
     }
 
-    std::string_view ip_proto = pkt["ip.proto"].get_ref<const std::string&>();
+    std::string ip_proto = safe_get_string(pkt, "ip.proto");
 
     if (ip_proto.empty()) {
-      ip_proto = pkt["ipv6.nxt"].get_ref<const std::string&>();
+      ip_proto = safe_get_string(pkt, "ipv6.nxt");
     }
 
-    if ((l = ip_proto.find(',')) != std::string_view::npos) {
+    if ((l = ip_proto.find(',')) != std::string::npos) {
       ip_proto = ip_proto.substr(0, l);
     }
 
@@ -769,18 +802,18 @@ public:
     std::string cur_key;
     nlohmann::json key_data;
 
-    std::string_view cur_src = pkt["_ws.col.def_src"].get_ref<const std::string&>();
-    std::string_view cur_dst = pkt["_ws.col.def_dst"].get_ref<const std::string&>();
+    std::string cur_src = safe_get_string(pkt, "_ws.col.def_src");
+    std::string cur_dst = safe_get_string(pkt, "_ws.col.def_dst");
 
     // fix a bug in tshark
     // sometimes, ip.src or ip.dst can have unexpected comma due to a bug in tshark. we will use the
     // first part of the address
 
     size_t l;
-    if ((l = cur_src.find(',')) != std::string_view::npos) {
+    if ((l = cur_src.find(',')) != std::string::npos) {
       cur_src = cur_src.substr(0, l);
     }
-    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+    if ((l = cur_dst.find(',')) != std::string::npos) {
       cur_dst = cur_dst.substr(0, l);
     }
 
@@ -833,8 +866,8 @@ public:
     std::string cur_key;
     nlohmann::json key_data;
 
-    std::string_view cur_src = pkt["ip.src"].get_ref<const std::string&>();
-    std::string_view cur_dst = pkt["ip.dst"].get_ref<const std::string&>();
+    std::string cur_src = safe_get_string(pkt, "ip.src");
+    std::string cur_dst = safe_get_string(pkt, "ip.dst");
 
     // if NonIPv4 address is given... ;<
     if (cur_src.empty() && cur_dst.empty()) {
@@ -847,10 +880,10 @@ public:
     // first part of the address
 
     size_t l;
-    if ((l = cur_src.find(',')) != std::string_view::npos) {
+    if ((l = cur_src.find(',')) != std::string::npos) {
       cur_src = cur_src.substr(0, l);
     }
-    if ((l = cur_dst.find(',')) != std::string_view::npos) {
+    if ((l = cur_dst.find(',')) != std::string::npos) {
       cur_dst = cur_dst.substr(0, l);
     }
 
@@ -885,8 +918,8 @@ public:
 
     nlohmann::json key_data;
     key_data["__" + granularity + "_key"] = std::to_string(pkt["idx"].get<size_t>()) + "_"
-                                            + pkt["wlan.ra"].get_ref<const std::string&>() + "_"
-                                            + pkt["wlan.ta"].get_ref<const std::string&>();
+                                            + safe_get_string(pkt, "wlan.ra") + "_"
+                                            + safe_get_string(pkt, "wlan.ta");
     return key_data;
   }
 };
@@ -901,7 +934,7 @@ public:
     [[maybe_unused]] auto file_idx = ctx.file_idx;
 
     nlohmann::json key_data;
-    key_data["__" + granularity + "_key"] = pkt["_ws.col.protocol"].get_ref<const std::string&>();
+    key_data["__" + granularity + "_key"] = safe_get_string(pkt, "_ws.col.protocol");
     return key_data;
   }
 };

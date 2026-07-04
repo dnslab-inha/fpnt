@@ -49,7 +49,7 @@ extern "C" void P_getsubstr(fpnt::PluginContext& ctx) {
     return;
   }
 
-  const auto& val = ctx.getRecord()[source_field].get_ref<const std::string&>();
+  std::string val = ctx.getRecord()[source_field].is_null() ? "" : ctx.getRecord()[source_field].get<std::string>();
   if (val.empty()) {
     ctx.getRecord()[ctx.getField()] = "";
     return;
@@ -109,7 +109,7 @@ extern "C" void P_getsubstr_by_comma(fpnt::PluginContext& ctx) {
     return;
   }
 
-  const auto& val = ctx.getRecord()[source_field].get_ref<const std::string&>();
+  std::string val = ctx.getRecord()[source_field].is_null() ? "" : ctx.getRecord()[source_field].get<std::string>();
   if (val.empty() || target_idx < 0) {
     ctx.getRecord()[ctx.getField()] = "";
     return;

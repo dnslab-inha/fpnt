@@ -65,7 +65,11 @@ namespace fpnt {
 
       // Cache miss or used_fields is empty (always generate)
       nlohmann::json key_data = genKey({pkt, granularity, file_idx});
-      std::string k_str = key_data["__" + granularity + "_key"].get<std::string>();
+      std::string k_str = "";
+      std::string key_field = "__" + granularity + "_key";
+      if (key_data.contains(key_field) && key_data[key_field].is_string()) {
+        k_str = key_data[key_field].get<std::string>();
+      }
 
       size_t k_hash = std::hash<std::string>{}(k_str);
 

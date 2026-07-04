@@ -13,7 +13,7 @@
 
 extern "C" void P_hex2dec(fpnt::PluginContext& ctx) {
   std::stringstream ss;
-  ss << std::hex << ctx.getRecord()[ctx.getField()].get_ref<const std::string&>();
+  ss << std::hex << (ctx.getRecord()[ctx.getField()].is_string() ? ctx.getRecord()[ctx.getField()].get<std::string>() : "");
   unsigned int x;
   ss >> x;
   ctx.getRecord()[ctx.getField()] = std::to_string(x);
@@ -21,7 +21,7 @@ extern "C" void P_hex2dec(fpnt::PluginContext& ctx) {
 
 extern "C" void P_plus(fpnt::PluginContext& ctx) {
   std::stringstream ss;
-  ss << ctx.getRecord()[ctx.getField()].get_ref<const std::string&>();
+  ss << (ctx.getRecord()[ctx.getField()].is_string() ? ctx.getRecord()[ctx.getField()].get<std::string>() : "");
   unsigned int x;
   ss >> x;
   x += std::stoi(ctx.getOption());
@@ -30,8 +30,8 @@ extern "C" void P_plus(fpnt::PluginContext& ctx) {
 }
 
 extern "C" void P_cal_no_angles(fpnt::PluginContext& ctx) {
-  const auto& nc = ctx.getRecord()["wlan.vht.mimo_control.nc"].get_ref<const std::string&>();
-  const auto& nr = ctx.getRecord()["wlan.vht.mimo_control.nr"].get_ref<const std::string&>();
+  const auto& nc = (ctx.getRecord()["wlan.vht.mimo_control.nc"].is_string() ? ctx.getRecord()["wlan.vht.mimo_control.nc"].get<std::string>() : "");
+  const auto& nr = (ctx.getRecord()["wlan.vht.mimo_control.nr"].is_string() ? ctx.getRecord()["wlan.vht.mimo_control.nr"].get<std::string>() : "");
   std::string nr_nc = nr + "_" + nc;
 
   if (nr_nc == "2_1" || nr_nc == "2_2")
@@ -54,7 +54,7 @@ extern "C" void P_comma2semicol(fpnt::PluginContext& ctx) {
   ss << no_angles;
   ss >> x;
 
-  std::string original = ctx.getRecord()[ctx.getField()].get_ref<const std::string&>();
+  std::string original = (ctx.getRecord()[ctx.getField()].is_string() ? ctx.getRecord()[ctx.getField()].get<std::string>() : "");
   size_t pos = original.find(",", 0);
   size_t occurence = 0;
   while (pos != std::string::npos) {
@@ -80,7 +80,7 @@ std::string trim2(const std::string& str) {
 }
 
 extern "C" void P_fast_bfm_fill(fpnt::PluginContext& ctx) {
-  std::string original = ctx.getRecord()[ctx.getField()].get_ref<const std::string&>();
+  std::string original = (ctx.getRecord()[ctx.getField()].is_string() ? ctx.getRecord()[ctx.getField()].get<std::string>() : "");
   //    std::cout << original << std::endl;
 
   std::stringstream ss_blocks(original);

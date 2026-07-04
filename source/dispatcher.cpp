@@ -61,6 +61,7 @@ namespace fpnt {
     out_idx2key.clear();
     out_key2idx.clear();
     out_child_keys.clear();
+    out_child_idxs.clear();
     for (size_t i = 0; i < g_lvs.size(); i++) {
       g_lv_idx[g_lvs[i]] = i;
       idxs.push_back(-1);
@@ -100,6 +101,7 @@ namespace fpnt {
     out_idx2key.clear();
     out_key2idx.clear();
     out_child_keys.clear();
+    out_child_idxs.clear();
     for (size_t i = 0; i < g_lvs.size(); i++) {
       idxs.push_back(-1);
       out_readers.push_back(CSVReader(csv_path + "output_" + g_lvs[i] + ".csv"));
