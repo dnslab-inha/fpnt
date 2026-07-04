@@ -20,9 +20,7 @@ CSV schemas and dynamically loaded plugins, effectively reducing the
 engineering overhead of adding a new feature from hundreds of lines of complex 
 C/C++ code to zero.
 
-\image html Figure1.png "Figure 1: Overall architecture of fpnt illustrating 
-the multi-level feature extraction pipeline for packet, flow, and flowset 
-granularities."
+\image html Figure1.png "Figure 1: Overall architecture of fpnt illustrating the multi-level feature extraction pipeline for packet, flow, and flowset granularities."
 
 @section workflow The Core Pipeline Workflow
 
@@ -183,7 +181,7 @@ of time, drastically reducing processing latency.
 @subsection v040_idx_api Index-Based Plugin API
 To complement the vectorized storage, the Plugin API was entirely rewritten. 
 The original API required plugins to query fields by their string names (e.g., 
-@c cnt["tcp.srcport"]). This meant that for a PCAP file with 1 million packets, 
+`cnt["tcp.srcport"]`). This meant that for a PCAP file with 1 million packets, 
 a simple addition plugin would perform 2 million string hashing operations.
 
 The new `P_*_idx` API resolves all field names to integer indices exactly once 

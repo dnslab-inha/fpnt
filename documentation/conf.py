@@ -1,6 +1,7 @@
 DOXYFILE = 'Doxyfile'
 
 LINKS_NAVBAR1 = [
+    ('About fpnt', 'about', []),
     ('Getting Started', 'pages', [
         ('Building & Installation', 'building'),
         ('Configuration', 'configuration')
