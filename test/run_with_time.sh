@@ -13,7 +13,11 @@ if [ $is_discovery -eq 1 ]; then
   exec "$@"
 else
   if command -v time >/dev/null 2>&1; then
-    exec /usr/bin/time -v "$@"
+    if [[ "$(uname)" == "Darwin" ]]; then
+      exec /usr/bin/time -l "$@"
+    else
+      exec /usr/bin/time -v "$@"
+    fi
   else
     exec "$@"
   fi
