@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Plugin API | FPNT</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,400i,600,600i%7CSource+Code+Pro:400,400i,600" />
+  <link rel="stylesheet" href="m-dark+documentation.compiled.css" />
+  <link rel="icon" href="favicon-dark.png" type="image/png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#22272e" />
+</head>
+<body>
+<header><nav id="navigation">
+  <div class="m-container">
+    <div class="m-row">
+      <a href="index.html" id="m-navbar-brand" class="m-col-t-8 m-col-m-none m-left-m">FPNT</a>
+      <div class="m-col-t-4 m-hide-m m-text-right m-nopadr">
+        <a href="#search" class="m-doc-search-icon" title="Search" onclick="return showSearch()"><svg style="height: 0.9rem;" viewBox="0 0 16 16">
+          <path id="m-doc-search-icon-path" d="m6 0c-3.31 0-6 2.69-6 6 0 3.31 2.69 6 6 6 1.49 0 2.85-0.541 3.89-1.44-0.0164 0.338 0.147 0.759 0.5 1.15l3.22 3.79c0.552 0.614 1.45 0.665 2 0.115 0.55-0.55 0.499-1.45-0.115-2l-3.79-3.22c-0.392-0.353-0.812-0.515-1.15-0.5 0.895-1.05 1.44-2.41 1.44-3.89 0-3.31-2.69-6-6-6zm0 1.56a4.44 4.44 0 0 1 4.44 4.44 4.44 4.44 0 0 1-4.44 4.44 4.44 4.44 0 0 1-4.44-4.44 4.44 4.44 0 0 1 4.44-4.44z"/>
+        </svg></a>
+        <a id="m-navbar-show" href="#navigation" title="Show navigation"></a>
+        <a id="m-navbar-hide" href="#" title="Hide navigation"></a>
+      </div>
+      <div id="m-navbar-collapse" class="m-col-t-12 m-show-m m-col-m-none m-right-m">
+        <div class="m-row">
+          <ol class="m-col-t-6 m-col-m-none">
+            <li>
+              <a href="pages.html">Getting Started</a>
+              <ol>
+                <li><a href="building.html">Building and Installation</a></li>
+                <li><a href="configuration.html">Configuration</a></li>
+              </ol>
+            </li>
+            <li>
+              <a href="pages.html">Developer Guide</a>
+              <ol>
+                <li><a href="architecture.html">Architecture</a></li>
+                <li><a href="plugin_api.html" id="m-navbar-current">Plugin API</a></li>
+              </ol>
+            </li>
+          </ol>
+          <ol class="m-col-t-6 m-col-m-none" start="3">
+            <li><a href="annotated.html">Classes</a></li>
+            <li><a href="files.html">Files</a></li>
+            <li class="m-show-m"><a href="#search" class="m-doc-search-icon" title="Search" onclick="return showSearch()"><svg style="height: 0.9rem;" viewBox="0 0 16 16">
+              <use href="#m-doc-search-icon-path" />
+            </svg></a></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav></header>
+<main><article>
+  <div class="m-container m-container-inflatable">
+    <div class="m-row">
+      <div class="m-col-l-10 m-push-l-1">
+        <h1>
+          Plugin API
+        </h1>
+        <nav class="m-block m-default">
+          <h3>Contents</h3>
+          <ul>
+            <li><a href="#overview">Overview of the Plugin System</a></li>
+            <li>
+              <a href="#key_gen">Key Generation Functions</a>
+              <ul>
+                <li><a href="#keygen_signature">Function Signature</a></li>
+                <li><a href="#keygen_example">Example: A Simplified 5-tuple Flow Key</a></li>
+              </ul>
+            </li>
+            <li>
+              <a href="#prep_funcs">Preprocessing Functions</a>
+              <ul>
+                <li><a href="#prep_signature">Index-Based API (</a></li>
+                <li><a href="#prep_example">Example: Child Sum</a></li>
+              </ul>
+            </li>
+            <li><a href="#common_funcs">Commonly Used P_*() Functions</a></li>
+            <li><a href="#csv_usage">Specifying Plugins in CSV</a></li>
+            <li><a href="#precautions">Precautions and Best Practices</a></li>
+          </ul>
+        </nav>
+<p><code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> achieves its zero-LoC extensibility through a dynamic function-based plugin architecture. The framework dynamically loads shared object (<code>.so</code>) files containing custom C++ functions for preprocessing data and generating keys. This page explains how to write these plugins, utilize them in CSV schemas, and best practices.</p><section id="overview"><h2><a href="#overview">Overview of the Plugin System</a></h2><p>When <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> is executed, it loads a shared library (usually <code>libFPNT_PLUGINS.so</code>). Inside this library, <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> looks for specific C-linkage functions (<code>extern &quot;C&quot;</code>) that match the required signatures. There are two primary types of plugin functions:</p><ol><li><strong>Key Generators (<code>genKey_*</code>)</strong>: Define how packets are aggregated into higher-level granularities (e.g., flows, flowsets).</li><li><strong>Preprocessing Functions (<code>P_*</code>)</strong>: Define how to extract, transform, or aggregate features for a specific record.</li></ol><p>With the v0.40 update, the framework introduced an <strong>Index-Based API (<code>P_*_idx</code>)</strong> for preprocessing functions to bypass slow string lookups and instead use direct array indexing, significantly improving throughput.</p></section><section id="key_gen"><h2><a href="#key_gen">Key Generation Functions</a></h2><p>Key generators determine how records are grouped. Every packet parsed from <code>tshark</code> is passed to the key generators for the configured granularity levels (e.g., flow, flowset).</p><section id="keygen_signature"><h3><a href="#keygen_signature">Function Signature</a></h3><pre class="m-code"><span class="k">extern</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">genKey_flow_default</span><span class="p">(</span>
+<span class="w">    </span><span class="n">fpnt</span><span class="o">::</span><span class="n">PluginContext</span><span class="o">&amp;</span><span class="w"> </span><span class="n">context</span><span class="p">,</span>
+<span class="w">    </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">parent_values</span><span class="p">,</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">generated_key</span><span class="p">,</span>
+<span class="w">    </span><span class="kt">int64_t</span><span class="w"> </span><span class="n">pkt_idx</span>
+<span class="p">);</span></pre><ul><li><code>context</code>: Provides access to the <code>Dispatcher</code> and current state.</li><li><code>parent_values</code>: If this granularity level depends on a parent level, its values are passed here.</li><li><code>generated_key</code>: The output parameter. You must assign the resulting key string to this variable. If you assign an empty string, the packet is ignored for this granularity level.</li><li><code>pkt_idx</code>: The direct array index of the current packet record in the <code>Dispatcher</code>&#x27;s memory.</li></ul></section><section id="keygen_example"><h3><a href="#keygen_example">Example: A Simplified 5-tuple Flow Key</a></h3><p>To group packets by a standard 5-tuple (Source IP, Destination IP, Source Port, Destination Port, Protocol):</p><pre class="m-code"><span class="k">extern</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">genKey_flow_5tuple</span><span class="p">(</span><span class="n">fpnt</span><span class="o">::</span><span class="n">PluginContext</span><span class="o">&amp;</span><span class="w"> </span><span class="n">ctx</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">parent</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&amp;</span><span class="w"> </span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="kt">int64_t</span><span class="w"> </span><span class="n">pkt_idx</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">nlohmann</span><span class="o">::</span><span class="n">json</span><span class="o">&amp;</span><span class="w"> </span><span class="n">pkt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">dispatcher</span><span class="o">-&gt;</span><span class="n">getRecordByIdx</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">pkt_idx</span><span class="p">);</span><span class="w"> </span><span class="c1">// 0 is packet level</span>
+<span class="w">    </span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">sip</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pkt</span><span class="p">[</span><span class="s">&quot;ip.src&quot;</span><span class="p">].</span><span class="n">is_string</span><span class="p">()</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">pkt</span><span class="p">[</span><span class="s">&quot;ip.src&quot;</span><span class="p">].</span><span class="n">get</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">dip</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pkt</span><span class="p">[</span><span class="s">&quot;ip.dst&quot;</span><span class="p">].</span><span class="n">is_string</span><span class="p">()</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">pkt</span><span class="p">[</span><span class="s">&quot;ip.dst&quot;</span><span class="p">].</span><span class="n">get</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">sport</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pkt</span><span class="p">[</span><span class="s">&quot;tcp.srcport&quot;</span><span class="p">].</span><span class="n">is_string</span><span class="p">()</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">pkt</span><span class="p">[</span><span class="s">&quot;tcp.srcport&quot;</span><span class="p">].</span><span class="n">get</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">dport</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pkt</span><span class="p">[</span><span class="s">&quot;tcp.dstport&quot;</span><span class="p">].</span><span class="n">is_string</span><span class="p">()</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">pkt</span><span class="p">[</span><span class="s">&quot;tcp.dstport&quot;</span><span class="p">].</span><span class="n">get</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">;</span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">proto</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">pkt</span><span class="p">[</span><span class="s">&quot;ip.proto&quot;</span><span class="p">].</span><span class="n">is_string</span><span class="p">()</span><span class="w"> </span><span class="o">?</span><span class="w"> </span><span class="n">pkt</span><span class="p">[</span><span class="s">&quot;ip.proto&quot;</span><span class="p">].</span><span class="n">get</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p">;</span>
+<span class="w">    </span>
+<span class="w">    </span><span class="c1">// Create a bidirectional key</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">sip</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">dip</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">swap</span><span class="p">(</span><span class="n">sip</span><span class="p">,</span><span class="w"> </span><span class="n">dip</span><span class="p">);</span>
+<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">swap</span><span class="p">(</span><span class="n">sport</span><span class="p">,</span><span class="w"> </span><span class="n">dport</span><span class="p">);</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span>
+<span class="w">    </span><span class="n">key</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sip</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;,&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">dip</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;,&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">sport</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;,&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">dport</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="s">&quot;,&quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">proto</span><span class="p">;</span>
+<span class="p">}</span></pre></section></section><section id="prep_funcs"><h2><a href="#prep_funcs">Preprocessing Functions</a></h2><p>Preprocessing functions mutate or aggregate features. They are executed in the order defined in the CSV schemas.</p><section id="prep_signature"><h3><a href="#prep_signature">Index-Based API (</a></h3><p><code class="m-code"><span class="k">extern</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">P_math_add_idx</span><span class="p">(</span><span class="n">fpnt</span><span class="o">::</span><span class="n">PluginContext</span><span class="o">&amp;</span><span class="w"> </span><span class="n">ctx</span><span class="p">);</span></code> Although the signature takes only the <code>PluginContext</code>, the context contains the pre-resolved indices:</p><ul><li><code>ctx.current_idx</code>: The index of the record currently being processed.</li><li><code>ctx.target_idx</code>: The field index where the result should be stored.</li><li><code>ctx.args_idx</code>: A <code>std::vector&lt;int&gt;</code> containing the resolved indices of the arguments provided in the CSV.</li><li><code>ctx.getChildIdxs()</code>: Returns the indices of all child records (e.g., if processing a flow, it returns the indices of all packets belonging to this flow).</li></ul></section><section id="prep_example"><h3><a href="#prep_example">Example: Child Sum</a></h3><pre class="m-code"><span class="k">extern</span><span class="w"> </span><span class="s">&quot;C&quot;</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="n">P_childsum_d_idx</span><span class="p">(</span><span class="n">fpnt</span><span class="o">::</span><span class="n">PluginContext</span><span class="o">&amp;</span><span class="w"> </span><span class="n">ctx</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="kt">double</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span>
+<span class="w">    </span><span class="kt">int</span><span class="w"> </span><span class="n">target_field_idx</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">args_idx</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span><span class="w"> </span><span class="c1">// The field index in the child records</span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="kt">size_t</span><span class="w"> </span><span class="n">child_idx</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">getChildIdxs</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">nlohmann</span><span class="o">::</span><span class="n">json</span><span class="o">&amp;</span><span class="w"> </span><span class="n">cnt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">getChildRecordByIdx</span><span class="p">(</span><span class="n">child_idx</span><span class="p">);</span>
+<span class="w">        </span><span class="c1">// Assuming the child record&#39;s field is stored as a string or number</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">cnt</span><span class="p">[</span><span class="n">target_field_idx</span><span class="p">].</span><span class="n">is_null</span><span class="p">())</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="w"> </span><span class="n">val_str</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cnt</span><span class="p">[</span><span class="n">target_field_idx</span><span class="p">].</span><span class="n">get</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">string</span><span class="o">&gt;</span><span class="p">();</span>
+<span class="w">            </span><span class="n">result</span><span class="w"> </span><span class="o">+=</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">stod</span><span class="p">(</span><span class="n">val_str</span><span class="p">);</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">    </span>
+<span class="w">    </span><span class="c1">// Store the aggregated result</span>
+<span class="w">    </span><span class="n">ctx</span><span class="p">.</span><span class="n">dispatcher</span><span class="o">-&gt;</span><span class="n">setRecordByIdx</span><span class="p">(</span><span class="n">ctx</span><span class="p">.</span><span class="n">current_idx</span><span class="p">,</span><span class="w"> </span><span class="n">ctx</span><span class="p">.</span><span class="n">target_idx</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">to_string</span><span class="p">(</span><span class="n">result</span><span class="p">));</span>
+<span class="p">}</span></pre></section></section><section id="common_funcs"><h2><a href="#common_funcs">Commonly Used P_*() Functions</a></h2><p>The framework comes with several built-in mathematical and utility plugins.</p><ul><li><strong>Aggregation (Child to Parent)</strong><ul><li><code>P_childsum_ll_idx</code> / <code>P_childsum_d_idx</code>: Sums integer/double values from all child records.</li><li><code>P_childmean_idx</code>: Calculates the mean of child values.</li><li><code>P_childstdev_idx</code>: Calculates the sample standard deviation of child values.</li><li><code>P_childmax_d_idx</code> / <code>P_childmin_d_idx</code>: Finds the maximum/minimum double value among children.</li></ul></li><li><strong>Math Operations</strong><ul><li><code>P_math_add_idx</code>, <code>P_math_sub_idx</code>, <code>P_math_mul_idx</code>, <code>P_math_div_idx</code>: Performs basic arithmetic on fields within the current record.</li></ul></li><li><strong>Sequence Generation</strong><ul><li><code>P_seq_idx</code>: Collects a specific field from all child records and formats it as a comma-separated sequence string (e.g., for SPLT extraction).</li></ul></li></ul></section><section id="csv_usage"><h2><a href="#csv_usage">Specifying Plugins in CSV</a></h2><p>In your schema CSV files (e.g., <code>output_pkt.csv</code>, <code>output_flow.csv</code>), you define which functions to use and their corresponding options. The functions and their options are written in separate columns.</p><p>Syntax Rules:**</p><ul><li><strong>Multiple Functions</strong>: You can apply multiple preprocessing functions sequentially to a single output field. Functions are separated by semicolons (<code>;</code>) in the <code>preprocessing_functions</code> column.</li><li><strong>Options/Arguments</strong>: The corresponding arguments for each function are written in the <code>options</code> (or <code>arguments</code>) column, also separated by semicolons (<code>;</code>) in the exact same order.</li><li><p><strong>Single Argument Limit</strong>: Currently, each preprocessing function accepts only <strong>one</strong> argument.</p><p>Example <code>output_pkt.csv</code> snippet:**</p></li></ul><pre class="m-code">&quot;protocol&quot;,&quot;Protocol&quot;,&quot;P_cpy;P_fill1&quot;,&quot;ip.proto;ipv6.nxt&quot;</pre><p>In this example:</p><ol><li>The first function <code>P_cpy</code> is executed with the argument <code>ip.proto</code>.</li><li>The second function <code>P_fill1</code> is then executed with the argument <code>ipv6.nxt</code>. This sequential execution allows for building a per-field preprocessing pipeline directly within the CSV schema.</li></ol></section><section id="precautions"><h2><a href="#precautions">Precautions and Best Practices</a></h2><ol><li><strong>Handling Missing Data</strong>: Not all packets contain all fields (e.g., a UDP packet lacks TCP flags). Always check if a field exists or <code>is_null()</code> before accessing it in a plugin to prevent crashes.</li><li><strong>Type Casting (<code>std::stod</code>, <code>std::stoll</code>)</strong>: When converting strings to numbers, ensure the string is not empty. C++ <code>std::stod</code> throws an <code>std::invalid_argument</code> exception on empty strings, which will crash the <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> process. Use wrapper functions or check <code>!str.empty()</code> beforehand.</li><li><strong>Stateless Plugins</strong>: <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> uses file-level multiprocessing via <code>fork()</code>. This means global variables are memory-isolated between different PCAP files. However, within a single PCAP processing pipeline, plugins must remain stateless or cleanly reset their state, as they are invoked repeatedly for every record.</li><li><strong>Memory Leaks</strong>: When writing custom C++ plugins, avoid allocating raw memory (<code>new</code>, <code>malloc</code>) without freeing it. Use standard C++ containers (<code>std::vector</code>, <code>std::string</code>) or smart pointers.</li><li><strong>Index Validity</strong>: When using the <code>_idx</code> API, rely exclusively on <code>ctx.args_idx</code> and <code>ctx.target_idx</code>. Do not hardcode indices, as the field indices are dynamically assigned by the <code>Dispatcher</code> based on the CSV schema at runtime.</li></ol></section>
+      </div>
+    </div>
+  </div>
+</article></main>
+<div class="m-doc-search" id="search">
+  <a href="#!" onclick="return hideSearch()"></a>
+  <div class="m-container">
+    <div class="m-row">
+      <div class="m-col-m-8 m-push-m-2">
+        <div class="m-doc-search-header m-text m-small">
+          <div><span class="m-label m-default">Tab</span> / <span class="m-label m-default">T</span> to search, <span class="m-label m-default">Esc</span> to close</div>
+          <div id="search-symbolcount">&hellip;</div>
+        </div>
+        <div class="m-doc-search-content">
+          <form>
+            <input type="search" name="q" id="search-input" placeholder="Loading &hellip;" disabled="disabled" autofocus="autofocus" autocomplete="off" spellcheck="false" />
+          </form>
+          <noscript class="m-text m-danger m-text-center">Unlike everything else in the docs, the search functionality <em>requires</em> JavaScript.</noscript>
+          <div id="search-help" class="m-text m-dim m-text-center">
+            <p class="m-noindent">Search for symbols, directories, files, pages or
+            modules. You can omit any prefix from the symbol or file path; adding a
+            <code>:</code> or <code>/</code> suffix lists all members of given symbol or
+            directory.</p>
+            <p class="m-noindent">Use <span class="m-label m-dim">&darr;</span>
+            / <span class="m-label m-dim">&uarr;</span> to navigate through the list,
+            <span class="m-label m-dim">Enter</span> to go.
+            <span class="m-label m-dim">Tab</span> autocompletes common prefix, you can
+            copy a link to the result using <span class="m-label m-dim">⌘</span>
+            <span class="m-label m-dim">L</span> while <span class="m-label m-dim">⌘</span>
+            <span class="m-label m-dim">M</span> produces a Markdown link.</p>
+          </div>
+          <div id="search-notfound" class="m-text m-warning m-text-center">Sorry, nothing was found.</div>
+          <ul id="search-results"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="search-v2.js"></script>
+<script src="searchdata-v2.js" async="async"></script>
+<footer><nav>
+  <div class="m-container">
+    <div class="m-row">
+      <div class="m-col-l-10 m-push-l-1">
+        <p>FPNT. Created with <a href="https://doxygen.org/">Doxygen</a> 1.17.0 and <a href="https://mcss.mosra.cz/">m.css</a>.</p>
+      </div>
+    </div>
+  </div>
+</nav></footer>
+</body>
+</html>

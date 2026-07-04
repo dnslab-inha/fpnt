@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>About fpnt | FPNT</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,400i,600,600i%7CSource+Code+Pro:400,400i,600" />
+  <link rel="stylesheet" href="m-dark+documentation.compiled.css" />
+  <link rel="icon" href="favicon-dark.png" type="image/png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#22272e" />
+</head>
+<body>
+<header><nav id="navigation">
+  <div class="m-container">
+    <div class="m-row">
+      <a href="index.html" id="m-navbar-brand" class="m-col-t-8 m-col-m-none m-left-m">FPNT</a>
+      <div class="m-col-t-4 m-hide-m m-text-right m-nopadr">
+        <a href="#search" class="m-doc-search-icon" title="Search" onclick="return showSearch()"><svg style="height: 0.9rem;" viewBox="0 0 16 16">
+          <path id="m-doc-search-icon-path" d="m6 0c-3.31 0-6 2.69-6 6 0 3.31 2.69 6 6 6 1.49 0 2.85-0.541 3.89-1.44-0.0164 0.338 0.147 0.759 0.5 1.15l3.22 3.79c0.552 0.614 1.45 0.665 2 0.115 0.55-0.55 0.499-1.45-0.115-2l-3.79-3.22c-0.392-0.353-0.812-0.515-1.15-0.5 0.895-1.05 1.44-2.41 1.44-3.89 0-3.31-2.69-6-6-6zm0 1.56a4.44 4.44 0 0 1 4.44 4.44 4.44 4.44 0 0 1-4.44 4.44 4.44 4.44 0 0 1-4.44-4.44 4.44 4.44 0 0 1 4.44-4.44z"/>
+        </svg></a>
+        <a id="m-navbar-show" href="#navigation" title="Show navigation"></a>
+        <a id="m-navbar-hide" href="#" title="Hide navigation"></a>
+      </div>
+      <div id="m-navbar-collapse" class="m-col-t-12 m-show-m m-col-m-none m-right-m">
+        <div class="m-row">
+          <ol class="m-col-t-6 m-col-m-none">
+            <li>
+              <a href="pages.html">Getting Started</a>
+              <ol>
+                <li><a href="building.html">Building and Installation</a></li>
+                <li><a href="configuration.html">Configuration</a></li>
+              </ol>
+            </li>
+            <li>
+              <a href="pages.html">Developer Guide</a>
+              <ol>
+                <li><a href="architecture.html">Architecture</a></li>
+                <li><a href="plugin_api.html">Plugin API</a></li>
+              </ol>
+            </li>
+          </ol>
+          <ol class="m-col-t-6 m-col-m-none" start="3">
+            <li><a href="annotated.html">Classes</a></li>
+            <li><a href="files.html">Files</a></li>
+            <li class="m-show-m"><a href="#search" class="m-doc-search-icon" title="Search" onclick="return showSearch()"><svg style="height: 0.9rem;" viewBox="0 0 16 16">
+              <use href="#m-doc-search-icon-path" />
+            </svg></a></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav></header>
+<main><article>
+  <div class="m-container m-container-inflatable">
+    <div class="m-row">
+      <div class="m-col-l-10 m-push-l-1">
+        <h1>
+          About fpnt
+        </h1>
+<p><code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> is an open-source C++ framework designed for flexible and rapid network traffic analysis (NTA) preprocessing.</p><p>While network traffic analysis increasingly requires diverse features across different classification granularities, existing preprocessing tools often suffer from rigid data structures, limited protocol support, or high memory overhead when handling large-scale features. <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> bridges the gap between raw traffic data and high-performance machine learning workflows by decoupling feature extraction logic from the underlying packet parsing.</p><section id="design_goals"><h2><a href="#design_goals">Design Goals</a></h2><p><code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> is designed as a rapid, code-reusable development framework based on three primary design goals:</p><ol><li><strong>Rapid prototyping of custom feature extractors</strong>: Adding a new protocol-specific feature in existing tools often requires modifying the core engine or writing a dedicated plugin (typically 50-200+ Lines of Code). <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> provides a zero-LoC prototyping experience using a CSV schema-driven configuration. It leverages <code>tshark</code> as the internal protocol dissector, ensuring deep protocol visibility, cross-platform portability, and reproducible feature extraction.</li><li><strong>Support for multi-level traffic granularity</strong>: <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> is designed to export traffic data records at varying levels of granularity (e.g., packet, flow, flowset). Both the <code>tshark</code> output and the schema for each subsequent granularity level are configurable via simple CSV files.</li><li><strong>Function-based plugin architecture</strong>: The framework supports dynamic loading of shared object (<code>.so</code>) files containing custom preprocessing (<code>P_*</code>) and key generation (<code>genKey_*</code>) functions. Researchers can construct per-field preprocessing pipelines without modifying the core source code.</li></ol></section><section id="non_goals"><h2><a href="#non_goals">Limitations and Scope</a></h2><ul><li><strong>Not for Real-time Line-rate Monitoring</strong>: <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> focuses on file-level multiprocessing for efficient <em>offline</em> analysis. It is designed to accelerate the prototyping phase of network research before deploying highly optimized low-level implementations (e.g., using DPDK or P4).</li><li><strong>Memory Consumption Trade-offs</strong>: The multi-granularity processing is highly flexible and maintains intermediate results (e.g., packet-level data) in memory. This inherently consumes more memory space compared to highly optimized, fixed-state exporters.</li></ul></section>
+      </div>
+    </div>
+  </div>
+</article></main>
+<div class="m-doc-search" id="search">
+  <a href="#!" onclick="return hideSearch()"></a>
+  <div class="m-container">
+    <div class="m-row">
+      <div class="m-col-m-8 m-push-m-2">
+        <div class="m-doc-search-header m-text m-small">
+          <div><span class="m-label m-default">Tab</span> / <span class="m-label m-default">T</span> to search, <span class="m-label m-default">Esc</span> to close</div>
+          <div id="search-symbolcount">&hellip;</div>
+        </div>
+        <div class="m-doc-search-content">
+          <form>
+            <input type="search" name="q" id="search-input" placeholder="Loading &hellip;" disabled="disabled" autofocus="autofocus" autocomplete="off" spellcheck="false" />
+          </form>
+          <noscript class="m-text m-danger m-text-center">Unlike everything else in the docs, the search functionality <em>requires</em> JavaScript.</noscript>
+          <div id="search-help" class="m-text m-dim m-text-center">
+            <p class="m-noindent">Search for symbols, directories, files, pages or
+            modules. You can omit any prefix from the symbol or file path; adding a
+            <code>:</code> or <code>/</code> suffix lists all members of given symbol or
+            directory.</p>
+            <p class="m-noindent">Use <span class="m-label m-dim">&darr;</span>
+            / <span class="m-label m-dim">&uarr;</span> to navigate through the list,
+            <span class="m-label m-dim">Enter</span> to go.
+            <span class="m-label m-dim">Tab</span> autocompletes common prefix, you can
+            copy a link to the result using <span class="m-label m-dim">⌘</span>
+            <span class="m-label m-dim">L</span> while <span class="m-label m-dim">⌘</span>
+            <span class="m-label m-dim">M</span> produces a Markdown link.</p>
+          </div>
+          <div id="search-notfound" class="m-text m-warning m-text-center">Sorry, nothing was found.</div>
+          <ul id="search-results"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="search-v2.js"></script>
+<script src="searchdata-v2.js" async="async"></script>
+<footer><nav>
+  <div class="m-container">
+    <div class="m-row">
+      <div class="m-col-l-10 m-push-l-1">
+        <p>FPNT. Created with <a href="https://doxygen.org/">Doxygen</a> 1.17.0 and <a href="https://mcss.mosra.cz/">m.css</a>.</p>
+      </div>
+    </div>
+  </div>
+</nav></footer>
+</body>
+</html>
