@@ -31,7 +31,6 @@ namespace fpnt {
 #if defined(__APPLE__)
     // On macOS, use `nm` to list symbols as there is no `dlinfo`.
     // This requires Xcode Command Line Tools to be installed.
-    bool find_dispatcher_ptr = false;
     FILE* pipe = popen(("nm -gU " + library_path).c_str(), "r");
     if (!pipe) {
       std::cerr << "Failed to run nm command" << std::endl;
