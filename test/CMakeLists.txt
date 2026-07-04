@@ -32,6 +32,8 @@ set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 target_compile_definitions(
   ${PROJECT_NAME} PRIVATE FPNT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/.."
                           FPNT_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}/.."
+                          FPNT_EXECUTABLE_PATH="$<TARGET_FILE:fpnt_bin>"
+                          FPNT_PLUGIN_PATH="$<TARGET_FILE:FPNT_PLUGINS>"
 )
 
 # enable compiler warnings

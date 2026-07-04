@@ -1,8 +1,6 @@
 #include <fpnt/loader.h>
 
 #if defined(__APPLE__)
-#  include <pstream.h>
-
 #  include <sstream>
 #elif defined(__linux__)
 #  include <elf.h>   // ELF64_Sym
@@ -17,7 +15,7 @@ namespace fpnt {
   Loader::Loader(std::string path) {
     library_path = path;
 
-    char *error;
+    char* error;
 
     handle = dlopen(library_path.c_str(), RTLD_LAZY | RTLD_GLOBAL);
     // https://stackoverflow.com/questions/25270275/get-functions-names-in-a-shared-library-programmatically
@@ -59,19 +57,19 @@ namespace fpnt {
         }
       }
 #elif defined(__linux__)
-    struct link_map *map = nullptr;
+    struct link_map* map = nullptr;
     dlinfo(handle, RTLD_DI_LINKMAP, &map);
 
-    Elf64_Sym *symtab = nullptr;
-    char *strtab = nullptr;
+    Elf64_Sym* symtab = nullptr;
+    char* strtab = nullptr;
     int symentries = 0;
     if (map) {
       for (auto section = map->l_ld; section->d_tag != DT_NULL; ++section) {
         if (section->d_tag == DT_SYMTAB) {
-          symtab = (Elf64_Sym *)section->d_un.d_ptr;
+          symtab = (Elf64_Sym*)section->d_un.d_ptr;
         }
         if (section->d_tag == DT_STRTAB) {
-          strtab = (char *)section->d_un.d_ptr;
+          strtab = (char*)section->d_un.d_ptr;
         }
         if (section->d_tag == DT_SYMENT) {
           symentries = section->d_un.d_val;
@@ -80,7 +78,7 @@ namespace fpnt {
     }
 
     if (symtab && strtab && symentries > 0) {
-      int size = strtab - (char *)symtab;
+      int size = strtab - (char*)symtab;
       for (int k = 0; k < size / symentries; ++k) {
         auto sym = &symtab[k];
         if (ELF64_ST_TYPE(sym->st_info) == STT_FUNC) {
@@ -97,7 +95,7 @@ namespace fpnt {
 #endif
     }
 
-    bool Loader::validate(const std::string &str_fn) {
+    bool Loader::validate(const std::string& str_fn) {
       if (str_fn.rfind("P_", 0) == 0) {
         return map_fns.contains(str_fn);
       } else if (str_fn.rfind("genKey_", 0) == 0) {
@@ -117,8 +115,8 @@ namespace fpnt {
         exit(1);
       }
 
-      char *error;
-      void *new_fnptr = dlsym(handle, str_fn.c_str());
+      char* error;
+      void* new_fnptr = dlsym(handle, str_fn.c_str());
       if ((error = dlerror()) != NULL) {
         std::cerr << error << std::endl;
         exit(1);
@@ -130,7 +128,7 @@ namespace fpnt {
       return fnptr;
     }
 
-    KeyGenerator *Loader::getGenKeyFn(const std::string &str_fn) {
+    KeyGenerator* Loader::getGenKeyFn(const std::string& str_fn) {
       if (map_genkeyfns.contains(str_fn) && map_genkeyfns[str_fn] != NULL)
         return map_genkeyfns[str_fn];
 
@@ -141,15 +139,15 @@ namespace fpnt {
 
       std::string factory_fn_name = "create_" + str_fn;
 
-      char *error;
-      void *new_fnptr = dlsym(handle, factory_fn_name.c_str());
+      char* error;
+      void* new_fnptr = dlsym(handle, factory_fn_name.c_str());
       if ((error = dlerror()) != NULL) {
         std::cerr << error << std::endl;
         exit(1);
       }
 
       fnptr_createKeyGenFn factory = (fnptr_createKeyGenFn)new_fnptr;
-      KeyGenerator *keygen = factory();
+      KeyGenerator* keygen = factory();
       map_genkeyfns[str_fn] = keygen;
 
       return keygen;

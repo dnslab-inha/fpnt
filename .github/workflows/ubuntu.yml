@@ -27,6 +27,17 @@ jobs:
           path: "**/cpm_modules"
           key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
+      - name: install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tshark python3 python3-requests python3-bs4
+
+      - name: prepare dfref
+        run: |
+          if [ ! -d dfref ]; then
+            python3 crawl_dfref.py
+          fi
+
       - name: configure
         run: cmake -Stest -Bbuild -DENABLE_TEST_COVERAGE=1 -DCMAKE_BUILD_TYPE=Debug
 
