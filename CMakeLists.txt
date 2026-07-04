@@ -148,3 +148,38 @@ install(
 # Add subdirectories
 add_subdirectory(standalone)
 add_subdirectory(plugins)
+
+# ---- Code Formatting ----
+
+file(
+  GLOB_RECURSE
+  ALL_CXX_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/plugins/*.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/plugins/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/standalone/*.cpp"
+)
+
+find_program(CLANG_FORMAT clang-format)
+if(CLANG_FORMAT)
+  add_custom_target(
+    format
+    COMMAND ${CLANG_FORMAT} -i -style=file ${ALL_CXX_SOURCES}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Formatting C++ code with clang-format"
+  )
+endif()
+
+find_program(CMAKE_FORMAT cmake-format)
+if(CMAKE_FORMAT)
+  add_custom_target(
+    format-cmake
+    COMMAND
+      ${CMAKE_FORMAT} -i "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt"
+      "${CMAKE_CURRENT_SOURCE_DIR}/plugins/CMakeLists.txt"
+      "${CMAKE_CURRENT_SOURCE_DIR}/standalone/CMakeLists.txt"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Formatting CMake code with cmake-format"
+  )
+endif()

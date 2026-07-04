@@ -13,7 +13,8 @@
  */
 extern "C" void P_max_d(fpnt::PluginContext& ctx) {
   nlohmann::json& cnt = ctx.getRecord();
-  std::string vectorString = (cnt[ctx.getOption()].is_string() ? cnt[ctx.getOption()].get<std::string>() : "");
+  std::string vectorString
+      = (cnt[ctx.getOption()].is_string() ? cnt[ctx.getOption()].get<std::string>() : "");
   std::vector<double> values = stringToVector(vectorString);
 
   double result = std::numeric_limits<double>::lowest();
@@ -35,7 +36,8 @@ extern "C" void P_max_d(fpnt::PluginContext& ctx) {
  */
 extern "C" void P_min_d(fpnt::PluginContext& ctx) {
   nlohmann::json& cnt = ctx.getRecord();
-  std::string vectorString = (cnt[ctx.getOption()].is_string() ? cnt[ctx.getOption()].get<std::string>() : "");
+  std::string vectorString
+      = (cnt[ctx.getOption()].is_string() ? cnt[ctx.getOption()].get<std::string>() : "");
   std::vector<double> values = stringToVector(vectorString);
 
   double result = std::numeric_limits<double>::max();
@@ -95,7 +97,8 @@ extern "C" void P_childsum_ll(fpnt::PluginContext& ctx) {
       long long temp = atoll(val_str.c_str());
 
       if (check_dir) {  // we should check direction
-        long long dir_value = atoll((cnt["__dir"].is_string() ? cnt["__dir"].get<std::string>() : "").c_str());
+        long long dir_value
+            = atoll((cnt["__dir"].is_string() ? cnt["__dir"].get<std::string>() : "").c_str());
         // different direction means no addition
         if (dir && dir_value < 0) {
           temp = 0;
@@ -387,7 +390,8 @@ extern "C" void P_childsum_ll_idx(fpnt::PluginContext& ctx) {
       long long temp = atoll(val_str.c_str());
 
       if (check_dir) {  // we should check direction
-        long long dir_value = atoll((cnt["__dir"].is_string() ? cnt["__dir"].get<std::string>() : "").c_str());
+        long long dir_value
+            = atoll((cnt["__dir"].is_string() ? cnt["__dir"].get<std::string>() : "").c_str());
         // different direction means no addition
         if (dir && dir_value < 0) {
           temp = 0;

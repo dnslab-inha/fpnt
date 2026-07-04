@@ -125,6 +125,37 @@ build/_deps/fpnt-build/standalone/fpnt [OPTIONS]
 
 If you want to execute `fpnt` in a specific directory without specifying the options above, make sure `config.json` is available in the current directory and you must modify several directory/file paths in `config.json` appropriately.
 
+
+## Configuration Profiles (`config_bfm.json` vs `config_mta*.json`)
+
+`fpnt` behavior is heavily driven by its configuration file. We provide several template configurations for different analysis goals:
+
+### 1. `config_bfm.json` (Beamform Feedback Matrix Extraction)
+Designed for the DeepCSI dataset to extract physical layer Wi-Fi features.
+* **Granularities**: `pkt`, `bfm`
+* **Key Generators**: Uses `genKey_bfm_default` to group packets by BFM events.
+* **TShark Filter**: `wlan.fc.type_subtype == 0x14 || wlan.vht.mimo_control.nc != 0` to isolate VHT/MIMO Wi-Fi frames.
+* **Use Case**: Extracts channel state information (CSI) and beamforming feedback matrices from raw Wi-Fi traces.
+
+### 2. `config_mta*.json` (Malware/General Traffic Analysis)
+Designed for traditional L3/L4/L7 network traffic analysis (MTA).
+* **`config_mta.json`**: Default flow-based analysis covering `pkt`, `flow`, and `flowset`. It uses `tcp||udp` for filtering and `genKey_flow_default` to group IPv4/IPv6 flows using 4-tuple (src_ip, dst_ip, src_port, dst_port).
+* **`config_mta-5tuple.json`**: Uses strict 5-tuple matching for flows (`genKey_flow_default_5tuple`) to distinguish flows sharing the same IPv4/IPv6 endpoints but different protocols.
+* **`config_mta-ipv4.json`**: Restricts flow key generation to IPv4 only (`genKey_flow_ipv4`) and filters for `ssl||tcp||udp`. Unidentified flows fall back to a `_NonIPv4` placeholder.
+* **`config_mta-comparison.json`**: A lightweight config outputting only `pkt` and `flow` granularities with `ip||ipv6` filtering, used for fast benchmarking and comparison against other feature extractors.
+
+## Code Formatting
+
+`fpnt` uses `clang-format` for C++ source code and `cmake-format` for CMake files. You can format the codebase automatically via CMake custom targets:
+
+```bash
+# Format all C++ code (requires clang-format)
+cmake --build ./build --target format
+
+# Format CMakeLists.txt (requires cmake-format)
+cmake --build ./build --target format-cmake
+```
+
 ## More on configurations
 
 * `fpnt` supports multiprocessing by dispatching each file to different process up to the number of CPUs automatically. You can turn off the feature by changing the `multiprocessing` field in `config.json` to `false`. It could be useful for debugging `fpnt` source code.

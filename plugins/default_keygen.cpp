@@ -8,15 +8,13 @@
 #include <string>
 #include <string_view>
 
-
 static inline std::string safe_get_string(const nlohmann::json& pkt, const std::string& key) {
-    if (pkt.contains(key)) {
-        if (pkt[key].is_string()) return pkt[key].get<std::string>();
-        if (pkt[key].is_number()) return pkt[key].dump();
-    }
-    return "";
+  if (pkt.contains(key)) {
+    if (pkt[key].is_string()) return pkt[key].get<std::string>();
+    if (pkt[key].is_number()) return pkt[key].dump();
+  }
+  return "";
 }
-
 
 namespace {
   inline int parse_port(std::string s) {
@@ -102,7 +100,6 @@ public:
       return key_data;
     }
 
-
     int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
     if (keycomp == 0)  // the port number same case
     {
@@ -112,9 +109,8 @@ public:
         if (inet_pton(AF_INET6, std::string(cur_src).c_str(), &src_n) != 1
             || inet_pton(AF_INET6, std::string(cur_dst).c_str(), &dst_n) != 1) {
           std::cerr << "Invalid IPv6 address" << std::endl;
-          std::cerr << pkt["idx"].get<size_t>() << ","
-                    << safe_get_string(pkt, "_ws.col.def_src") << ","
-                    << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
+          std::cerr << pkt["idx"].get<size_t>() << "," << safe_get_string(pkt, "_ws.col.def_src")
+                    << "," << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
           exit(EXIT_FAILURE);
         }
         if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
@@ -123,9 +119,8 @@ public:
         if (inet_pton(AF_INET, std::string(cur_src).c_str(), &src_n) != 1
             || inet_pton(AF_INET, std::string(cur_dst).c_str(), &dst_n) != 1) {
           std::cerr << "Invalid IPv4 address" << std::endl;
-          std::cerr << pkt["idx"].get<size_t>() << ","
-                    << safe_get_string(pkt, "_ws.col.def_src") << ","
-                    << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
+          std::cerr << pkt["idx"].get<size_t>() << "," << safe_get_string(pkt, "_ws.col.def_src")
+                    << "," << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
           exit(EXIT_FAILURE);
         }
         // Compare in network byte order (Big Endian)
@@ -224,7 +219,6 @@ public:
       return key_data;
     }
 
-
     int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
     if (keycomp == 0)  // the port number same case
     {
@@ -234,9 +228,8 @@ public:
         if (inet_pton(AF_INET6, std::string(cur_src).c_str(), &src_n) != 1
             || inet_pton(AF_INET6, std::string(cur_dst).c_str(), &dst_n) != 1) {
           std::cerr << "Invalid IPv6 address" << std::endl;
-          std::cerr << pkt["idx"].get<size_t>() << ","
-                    << safe_get_string(pkt, "_ws.col.def_src") << ","
-                    << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
+          std::cerr << pkt["idx"].get<size_t>() << "," << safe_get_string(pkt, "_ws.col.def_src")
+                    << "," << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
           exit(EXIT_FAILURE);
         }
         if (memcmp(&src_n, &dst_n, sizeof(src_n)) >= 0) src_greater_equal = true;
@@ -245,9 +238,8 @@ public:
         if (inet_pton(AF_INET, std::string(cur_src).c_str(), &src_n) != 1
             || inet_pton(AF_INET, std::string(cur_dst).c_str(), &dst_n) != 1) {
           std::cerr << "Invalid IPv4 address" << std::endl;
-          std::cerr << pkt["idx"].get<size_t>() << ","
-                    << safe_get_string(pkt, "_ws.col.def_src") << ","
-                    << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
+          std::cerr << pkt["idx"].get<size_t>() << "," << safe_get_string(pkt, "_ws.col.def_src")
+                    << "," << safe_get_string(pkt, "_ws.col.def_dst") << std::endl;
           exit(EXIT_FAILURE);
         }
         // Compare in network byte order (Big Endian)
@@ -355,7 +347,6 @@ public:
       return key_data;
     }
 
-
     int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
     if (keycomp == 0)  // the port number same case
     {
@@ -461,7 +452,6 @@ public:
     if (cur_src.empty() || cur_dst.empty()) {
       return key_data;
     }
-
 
     int keycomp = parse_port(cur_srcport) - parse_port(cur_dstport);
     if (keycomp == 0)  // the port number same case

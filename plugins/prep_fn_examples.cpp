@@ -113,8 +113,10 @@ extern "C" void P_diff_d(fpnt::PluginContext& ctx) {
                              + ") not found in ctx.getRecord() map.");
   }
 
-  std::string start_str = ctx.getRecord()[start_key].is_null() ? "" : ctx.getRecord()[start_key].get<std::string>();
-  std::string end_str = ctx.getRecord()[end_key].is_null() ? "" : ctx.getRecord()[end_key].get<std::string>();
+  std::string start_str
+      = ctx.getRecord()[start_key].is_null() ? "" : ctx.getRecord()[start_key].get<std::string>();
+  std::string end_str
+      = ctx.getRecord()[end_key].is_null() ? "" : ctx.getRecord()[end_key].get<std::string>();
 
   // 3. Convert string to double
   double start_time;
@@ -554,7 +556,9 @@ extern "C" void P_dir(fpnt::PluginContext& ctx) {
   // std::cout << ctx.getRecord().dump() << std::endl;
   const std::string flow_key = ctx.getKey(ctx.getKey(), ctx.getGranularity(), "flow");
 
-  std::string ipsrc = (ctx.getInPkts()[idx]["_ws.col.def_src"].is_string() ? ctx.getInPkts()[idx]["_ws.col.def_src"].get<std::string>() : "");
+  std::string ipsrc = (ctx.getInPkts()[idx]["_ws.col.def_src"].is_string()
+                           ? ctx.getInPkts()[idx]["_ws.col.def_src"].get<std::string>()
+                           : "");
 
   size_t l;
   if ((l = ipsrc.find(',')) != std::string::npos) {
@@ -600,9 +604,16 @@ extern "C" void P_dir(fpnt::PluginContext& ctx) {
       ctx.getRecord()["__dir"] = "0";
     }
   } else {
-    std::string dstport = (ctx.getInPkts()[idx]["tcp.dstport"].is_string() ? ctx.getInPkts()[idx]["tcp.dstport"].get<std::string>() : "");
-    if ((ctx.getInPkts()[idx]["udp.dstport"].is_string() ? ctx.getInPkts()[idx]["udp.dstport"].get<std::string>() : "") != "") {
-      dstport = (ctx.getInPkts()[idx]["udp.dstport"].is_string() ? ctx.getInPkts()[idx]["udp.dstport"].get<std::string>() : "");
+    std::string dstport = (ctx.getInPkts()[idx]["tcp.dstport"].is_string()
+                               ? ctx.getInPkts()[idx]["tcp.dstport"].get<std::string>()
+                               : "");
+    if ((ctx.getInPkts()[idx]["udp.dstport"].is_string()
+             ? ctx.getInPkts()[idx]["udp.dstport"].get<std::string>()
+             : "")
+        != "") {
+      dstport = (ctx.getInPkts()[idx]["udp.dstport"].is_string()
+                     ? ctx.getInPkts()[idx]["udp.dstport"].get<std::string>()
+                     : "");
     }
 
     if (dstport == "") {               // both tcp and udp has empty dstport
@@ -636,7 +647,9 @@ extern "C" void P_dir_ipv4(fpnt::PluginContext& ctx) {
     return;
   }
 
-  std::string ipsrc = (ctx.getInPkts()[idx]["ip.src"].is_string() ? ctx.getInPkts()[idx]["ip.src"].get<std::string>() : "");
+  std::string ipsrc = (ctx.getInPkts()[idx]["ip.src"].is_string()
+                           ? ctx.getInPkts()[idx]["ip.src"].get<std::string>()
+                           : "");
   if (ipsrc == "") {
     ctx.getRecord()["__dir"] = "0";  // unexpected value
     return;
@@ -676,9 +689,16 @@ extern "C" void P_dir_ipv4(fpnt::PluginContext& ctx) {
       ctx.getRecord()["__dir"] = "0";
     }
   } else {
-    std::string dstport = (ctx.getInPkts()[idx]["tcp.dstport"].is_string() ? ctx.getInPkts()[idx]["tcp.dstport"].get<std::string>() : "");
-    if ((ctx.getInPkts()[idx]["udp.dstport"].is_string() ? ctx.getInPkts()[idx]["udp.dstport"].get<std::string>() : "") != "") {
-      dstport = (ctx.getInPkts()[idx]["udp.dstport"].is_string() ? ctx.getInPkts()[idx]["udp.dstport"].get<std::string>() : "");
+    std::string dstport = (ctx.getInPkts()[idx]["tcp.dstport"].is_string()
+                               ? ctx.getInPkts()[idx]["tcp.dstport"].get<std::string>()
+                               : "");
+    if ((ctx.getInPkts()[idx]["udp.dstport"].is_string()
+             ? ctx.getInPkts()[idx]["udp.dstport"].get<std::string>()
+             : "")
+        != "") {
+      dstport = (ctx.getInPkts()[idx]["udp.dstport"].is_string()
+                     ? ctx.getInPkts()[idx]["udp.dstport"].get<std::string>()
+                     : "");
     }
 
     if (dstport == "") {               // both tcp and udp has empty dstport
