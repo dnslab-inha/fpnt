@@ -44,7 +44,8 @@ namespace fpnt {
         out_path(config["output_path"].get<std::string>()),
         sorted(PathComparator(config["sort_by_filesize"].get<bool>())),
         in_reader(config["tshark_path"].get<std::string>(), csv_path + "input_tshark.csv",
-                  config["dfref_path"].get<std::string>()),
+                  config["dfref_path"].get<std::string>(),
+                  config.value("skip_dfref_validation", false)),
         loader{config["plugins_path"].get<std::string>()} {
     file_idx = -1;
     in_pkt_idx = -1;

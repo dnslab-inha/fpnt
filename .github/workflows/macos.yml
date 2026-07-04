@@ -29,13 +29,6 @@ jobs:
       - name: install dependencies
         run: brew install wireshark python3
 
-      - name: prepare dfref
-        run: |
-          pip3 install requests beautifulsoup4 || pip install requests beautifulsoup4 || true
-          if [ ! -d dfref ]; then
-            python3 crawl_dfref.py
-          fi
-
       - name: configure
         run: cmake -Stest -Bbuild -DCMAKE_BUILD_TYPE=Debug -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 

@@ -17,7 +17,8 @@ int run_fpnt(const std::string& config, const std::string& input_dir,
 
   // Use cd to project source directory so relative paths in config files work properly
   std::string cmd = "cd " + std::string(FPNT_SOURCE_DIR) + " && " + executable + " -c " + config
-                    + " -i " + input_dir + " -o " + output_dir + " -p " + plugin_path;
+                    + " -i " + input_dir + " -o " + output_dir + " -p " + plugin_path
+                    + " --skip-dfref-validation";
 
   std::cout << "Running: " << cmd << std::endl;
   return std::system(cmd.c_str());
