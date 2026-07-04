@@ -34,9 +34,8 @@ namespace fpnt {
     }
 
     std::cout << "tshark Version Validation is failed!" << std::endl;
-    std::cout << field << "(" << name << ")"
-              << "'s Version Range is " << ver << " but the current tshark version is " << a << "."
-              << b << "." << c << std::endl;
+    std::cout << field << "(" << name << ")" << "'s Version Range is " << ver
+              << " but the current tshark version is " << a << "." << b << "." << c << std::endl;
 
     if (a > x2 || (a == x2 && (b > y2 || (b == y2 && c > z2)))) {
       std::cout
@@ -111,12 +110,15 @@ namespace fpnt {
     }
 
     if (loader != nullptr) {
-      // TODO: Validate!
       auto fields = map.getFields();
       for (auto& field : fields) {
         auto prep_fn_list = map.getPrepFns(field);
         for (auto& [fn, opt] : prep_fn_list) {
-          loader->validate(fn);
+          if (!loader->validate(fn)) {
+            std::cerr << "CSVReader: Invalid or missing plugin function '" << fn << "' for field '"
+                      << field << "'" << std::endl;
+            exit(1);
+          }
         }
       }
     }
@@ -125,10 +127,13 @@ namespace fpnt {
   };
 
   TSharkMapper& TSharkCSVReader::read(Loader* loader) {
+    char buffer[256];
     std::string line;
     bool first = true;
     bool version_validation = true;
-    while (std::getline(in, line)) {
+    while (fgets(buffer, sizeof(buffer), in)) {
+      line = buffer;
+      if (!line.empty() && line.back() == '\n') line.pop_back();
       if (first) {
         first = false;
         size_t pos = line.find_last_of(" ");
@@ -290,13 +295,20 @@ namespace fpnt {
       map.addField(field, name, desc, type, ver);
     }
 
+    // Free loaded dfref information to optimize memory usage as it is no longer needed
+    dfref_dirs.clear();
+    map.freeMemory();
+
     if (loader != nullptr) {
-      // TODO: Validate!
       auto fields = map.getFields();
       for (auto& field : fields) {
         auto prep_fn_list = map.getPrepFns(field);
         for (auto& [fn, opt] : prep_fn_list) {
-          loader->validate(fn);
+          if (!loader->validate(fn)) {
+            std::cerr << "TSharkCSVReader: Invalid or missing plugin function '" << fn
+                      << "' for field '" << field << "'" << std::endl;
+            exit(1);
+          }
         }
       }
     }
@@ -310,54 +322,108 @@ namespace fpnt {
       exit(1);
     }
 
-    std::string line;
-    char c = in.get();
-    if (c == std::char_traits<char>::eof()) {  // if tshark silently terminated
+    int c = fgetc(in);
+    if (c == EOF) {  // if tshark silently terminated
       std::string error_msg = "reader: tshark is terminated. check error log";
       if (config.contains("fpnt_tshark_error_log")) {
         error_msg += " " + config["fpnt_tshark_error_log"].get<std::string>();
       }
 
       rangBerr(error_msg, rang::fg::red);
-      in.close();
+      pclose(in);
       exit(1);
-    } else
-      in.unget();
+    } else {
+      ungetc(c, in);
+    }
 
     size_t no_pkts = 0;
     size_t early_stop_pkts = config["early_stop_pkts"].get<size_t>();
 
-    // technical note: CSVParser supports inputstream read but there are two reasons not to use
-    // the function even though this approach may degrade its performance: Reason 1: CSVParser
-    // seems not to correctly read pstream, a inherited class of inputsteram. Reason 2: We need to
-    // implement early stop, so that line-by-line read is essential.
-    while (std::getline(in, line)) {
-      if (no_pkts >= early_stop_pkts) {  // if early_stop_pkts == -1, this early stop
-                                         // function does not work.
-        rangout(fmt::format("splitter: early_stopped {} in_pkts / {} in_pkts", no_pkts,
-                            early_stop_pkts),
-                rang::fg::blue);
-        in.close();
-        break;
-      }
+    constexpr size_t BUF_SIZE = 1024 * 1024;  // 1MB
+    std::vector<char> buffer(BUF_SIZE);
+    std::string leftover;
 
-      auto lines_csv = csv::parse(line, tshark_input_format);
+    const auto& fields = map.getFields();
+    const size_t num_fields = fields.size();
+    bool early_stopped = false;
 
-      // with very very high probability, lines_csv has only one element.
-      // So it is better not to optimize this code.
-      for (auto& row : lines_csv) {
-        nlohmann::json row_json;
-        for (auto& col_name : map.getFields()) {
-          row_json[col_name] = row[col_name].get<std::string>();
+    while (!feof(in) && !early_stopped) {
+      size_t bytes_read = fread(buffer.data(), 1, BUF_SIZE, in);
+      if (bytes_read == 0) break;
+
+      size_t start = 0;
+      while (start < bytes_read) {
+        void* newline_ptr = memchr(buffer.data() + start, '\n', bytes_read - start);
+        if (newline_ptr == nullptr) {
+          leftover.append(buffer.data() + start, bytes_read - start);
+          break;
         }
-        row_json["idx"] = no_pkts++;  // Warning: internal state!
-        in_pkts.push_back(row_json);
-      }
+
+        size_t i = static_cast<char*>(newline_ptr) - buffer.data();
+
+        if (no_pkts >= early_stop_pkts) {
+          rangout(fmt::format("splitter: early_stopped {} in_pkts / {} in_pkts", no_pkts,
+                              early_stop_pkts),
+                  rang::fg::blue);
+          early_stopped = true;
+          break;
+        }
+
+        std::string_view line_view;
+        if (!leftover.empty()) {
+          leftover.append(buffer.data() + start, i - start);
+          line_view = leftover;
+        } else {
+          line_view = std::string_view(buffer.data() + start, i - start);
+        }
+
+        nlohmann::json row_json;
+        size_t p_start = 0;
+        size_t col_idx = 0;
+
+        while (col_idx < num_fields) {
+          size_t p_end = line_view.find('\t', p_start);
+          if (p_end == std::string_view::npos) {
+            row_json[fields[col_idx]] = line_view.substr(p_start);
+            break;
+          } else {
+            row_json[fields[col_idx]] = line_view.substr(p_start, p_end - p_start);
+            p_start = p_end + 1;
+          }
+          col_idx++;
+        }
+
+        row_json["idx"] = no_pkts++;
+        in_pkts.push_back(std::move(row_json));
 
 #ifndef NDEBUG
-      if (no_pkts % 1000000 == 0)  // counter for debugging
-        std::cout << "idx: " << no_pkts << std::endl;
+        if (no_pkts % 1000000 == 0) std::cout << "idx: " << no_pkts << std::endl;
 #endif
+
+        leftover.clear();
+        start = i + 1;
+      }
+    }
+
+    if (!early_stopped && !leftover.empty() && no_pkts < early_stop_pkts) {
+      std::string_view line_view = leftover;
+      nlohmann::json row_json;
+      size_t p_start = 0;
+      size_t col_idx = 0;
+
+      while (col_idx < num_fields) {
+        size_t p_end = line_view.find('\t', p_start);
+        if (p_end == std::string_view::npos) {
+          row_json[fields[col_idx]] = line_view.substr(p_start);
+          break;
+        } else {
+          row_json[fields[col_idx]] = line_view.substr(p_start, p_end - p_start);
+          p_start = p_end + 1;
+        }
+        col_idx++;
+      }
+      row_json["idx"] = no_pkts++;
+      in_pkts.push_back(std::move(row_json));
     }
 
     return map;

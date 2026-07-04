@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.14...3.22)
 
 project(
   FPNT
-  VERSION 0.3
+  VERSION 0.40
   DESCRIPTION "FPNT: a flexible preprocessor framework for network traffic"
   LANGUAGES CXX
 )
@@ -61,7 +61,7 @@ file(GLOB_RECURSE sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/source/
 
 # Note: for header-only libraries change all PUBLIC flags to INTERFACE and create an interface
 # target: add_library(${PROJECT_NAME} INTERFACE)
-add_library(${PROJECT_NAME} ${headers} ${sources})
+add_library(${PROJECT_NAME} SHARED ${headers} ${sources})
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -78,7 +78,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC csv)
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   target_link_libraries(${PROJECT_NAME} PRIVATE gcov)
 endif()
-target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PStreams_SOURCE_DIR}>)
+
 target_include_directories(
   ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
                          $<INSTALL_INTERFACE:include>
@@ -148,3 +148,38 @@ install(
 # Add subdirectories
 add_subdirectory(standalone)
 add_subdirectory(plugins)
+
+# ---- Code Formatting ----
+
+file(
+  GLOB_RECURSE
+  ALL_CXX_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/plugins/*.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/plugins/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/standalone/*.cpp"
+)
+
+find_program(CLANG_FORMAT clang-format)
+if(CLANG_FORMAT)
+  add_custom_target(
+    format
+    COMMAND ${CLANG_FORMAT} -i -style=file ${ALL_CXX_SOURCES}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Formatting C++ code with clang-format"
+  )
+endif()
+
+find_program(CMAKE_FORMAT cmake-format)
+if(CMAKE_FORMAT)
+  add_custom_target(
+    format-cmake
+    COMMAND
+      ${CMAKE_FORMAT} -i "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt"
+      "${CMAKE_CURRENT_SOURCE_DIR}/plugins/CMakeLists.txt"
+      "${CMAKE_CURRENT_SOURCE_DIR}/standalone/CMakeLists.txt"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Formatting CMake code with cmake-format"
+  )
+endif()

@@ -24,18 +24,6 @@ set(JSON_Install
 CPMAddPackage("gh:nlohmann/json#master") # CMakeLists.txt available; nlohmann_json
 
 CPMAddPackage(
-  NAME PStreams
-  GITHUB_REPOSITORY jwakely/pstreams
-  GIT_TAG master
-  OPTIONS "PSTREAMS_INSTALL OFF"
-)
-
-if(TARGET PStreams)
-  install(TARGETS PStreams EXPORT FPNTTargets)
-  install(DIRECTORY ${PStreams_SOURCE_DIR}/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-endif()
-
-CPMAddPackage(
   NAME CLI11
   GITHUB_REPOSITORY CLIUtils/CLI11
   GIT_TAG main
@@ -46,7 +34,12 @@ if(TARGET CLI11)
   install(DIRECTORY ${CLI11_SOURCE_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 endif()
 
-CPMAddPackage("gh:agauniyal/rang#master")
+CPMAddPackage(
+  NAME rang
+  GITHUB_REPOSITORY agauniyal/rang
+  GIT_TAG master
+  OPTIONS "BUILD_TESTING OFF"
+)
 if(TARGET rang)
   install(TARGETS rang EXPORT FPNTTargets)
   install(DIRECTORY ${rang_SOURCE_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
@@ -55,7 +48,7 @@ endif()
 CPMAddPackage(
   NAME csv
   GITHUB_REPOSITORY vincentlaucsb/csv-parser
-  GIT_TAG master
+  GIT_TAG 2.5.2
   OPTIONS "CSV_INSTALL OFF"
 )
 if(TARGET csv)

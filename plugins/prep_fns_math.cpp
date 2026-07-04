@@ -1,21 +1,20 @@
+#include <fpnt/plugin_context.h>
+
 #include <limits>
 #include <nlohmann/json.hpp>
 #include <string>
-#include <tuple>
-#include <utility>
+#include <string_view>
 
-#include "default_keygen.h"
-#include "dispatcher_ptr.h"
 #include "util_plugins.h"
 
 /**
- * @brief Same granularity's field max, assuming double
+ * @brief Same ctx.getGranularity()'s ctx.getField() max, assuming double
  *
  */
-extern "C" void P_max_d(std::string& option, nlohmann::json& record, const std::string& granularity,
-                        const std::string& key, const std::string& field) {
-  nlohmann::json& cnt = fpnt::d->out[granularity][key];
-  std::string vectorString = cnt[option];
+extern "C" void P_max_d(fpnt::PluginContext& ctx) {
+  nlohmann::json& cnt = ctx.getRecord();
+  std::string vectorString
+      = (cnt[ctx.getOption()].is_string() ? cnt[ctx.getOption()].get<std::string>() : "");
   std::vector<double> values = stringToVector(vectorString);
 
   double result = std::numeric_limits<double>::lowest();
@@ -25,20 +24,20 @@ extern "C" void P_max_d(std::string& option, nlohmann::json& record, const std::
 
   if (result == std::numeric_limits<double>::lowest()) {
     // No valid values found
-    record[field] = "";
+    ctx.getRecord()[ctx.getField()] = "";
   } else {
-    record[field] = std::to_string(result);
+    ctx.getRecord()[ctx.getField()] = std::to_string(result);
   }
 }
 
 /**
- * @brief Same granularity's field min, assuming double
+ * @brief Same ctx.getGranularity()'s ctx.getField() min, assuming double
  *
  */
-extern "C" void P_min_d(std::string& option, nlohmann::json& record, const std::string& granularity,
-                        const std::string& key, const std::string& field) {
-  nlohmann::json& cnt = fpnt::d->out[granularity][key];
-  std::string vectorString = cnt[option];
+extern "C" void P_min_d(fpnt::PluginContext& ctx) {
+  nlohmann::json& cnt = ctx.getRecord();
+  std::string vectorString
+      = (cnt[ctx.getOption()].is_string() ? cnt[ctx.getOption()].get<std::string>() : "");
   std::vector<double> values = stringToVector(vectorString);
 
   double result = std::numeric_limits<double>::max();
@@ -48,23 +47,22 @@ extern "C" void P_min_d(std::string& option, nlohmann::json& record, const std::
 
   if (result == std::numeric_limits<double>::max()) {
     // No valid values found
-    record[field] = "";
+    ctx.getRecord()[ctx.getField()] = "";
   } else {
-    record[field] = std::to_string(result);
+    ctx.getRecord()[ctx.getField()] = std::to_string(result);
   }
 }
 
 /**
- * @brief Child granularity's field sum, skipping empty fields; assuming long long
+ * @brief Child ctx.getGranularity()'s ctx.getField() sum, skipping empty fields; assuming long long
  *
  */
-extern "C" void P_childsum_ll(std::string& option, nlohmann::json& record,
-                              const std::string& granularity, const std::string& key,
-                              const std::string& field) {
-  // option contains out_pkt field name
-  // however, postfix '+' or '-' can be possible (assuming that field name does not allow postfix
+extern "C" void P_childsum_ll(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // however, postfix '+' or '-' can be possible (assuming that ctx.getField() name does not allow
+  // postfix
   // '+' or '-').
-  std::string fieldname = option;
+  std::string fieldname = ctx.getOption();
   bool check_dir, dir;
 
   // check fieldname is empty
@@ -90,15 +88,17 @@ extern "C" void P_childsum_ll(std::string& option, nlohmann::json& record,
 
   // idx contains flow idx
   long long result = 0;
-  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
-  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
-    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
-    if (!cnt[fieldname].is_null()) {
-      std::string val_str = cnt[fieldname].get<std::string>();
+
+  for (auto& child_key : ctx.getChildKeys()) {
+    nlohmann::json& cnt = ctx.getChildRecord(child_key);
+    auto& val = cnt[fieldname];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       long long temp = atoll(val_str.c_str());
 
       if (check_dir) {  // we should check direction
-        long long dir_value = atoll(cnt["__dir"].get<std::string>().c_str());
+        long long dir_value
+            = atoll((cnt["__dir"].is_string() ? cnt["__dir"].get<std::string>() : "").c_str());
         // different direction means no addition
         if (dir && dir_value < 0) {
           temp = 0;
@@ -111,46 +111,46 @@ extern "C" void P_childsum_ll(std::string& option, nlohmann::json& record,
       result += temp;
     }
   }
-  record[field] = std::to_string(result);
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
 }
 
 /**
- * @brief Child granularity's field sum, skipping empty fields, assuming double
+ * @brief Child ctx.getGranularity()'s ctx.getField() sum, skipping empty fields, assuming double
  *
  */
-extern "C" void P_childsum_d(std::string& option, nlohmann::json& record,
-                             const std::string& granularity, const std::string& key,
-                             const std::string& field) {
-  // option contains out_pkt field name
+extern "C" void P_childsum_d(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   double result = 0;
-  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
-  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
-    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
-    if (!cnt[option].is_null()) {
-      std::string val_str = cnt[option].get<std::string>();
+
+  const auto& opt = ctx.getOption();
+  for (auto& child_key : ctx.getChildKeys()) {
+    nlohmann::json& cnt = ctx.getChildRecord(child_key);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       result += atof(val_str.c_str());
     }
   }
-  record[field] = std::to_string(result);
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
 }
 
 /**
- * @brief Child granularity's field aggregation, without skipping empty fields
+ * @brief Child ctx.getGranularity()'s ctx.getField() aggregation, without skipping empty fields
  *
  */
-extern "C" void P_childmean(std::string& option, nlohmann::json& record,
-                            const std::string& granularity, const std::string& key,
-                            const std::string& field) {
-  // option contains out_pkt field name
+extern "C" void P_childmean(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   double result = 0.0f;
-  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
+
   size_t count = 0;
-  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
-    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
-    if (!cnt[option].is_null()) {
-      std::string val_str = cnt[option].get<std::string>();
+  const auto& opt = ctx.getOption();
+  for (auto& child_key : ctx.getChildKeys()) {
+    nlohmann::json& cnt = ctx.getChildRecord(child_key);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       result += atof(val_str.c_str());
       count++;
     }
@@ -158,27 +158,27 @@ extern "C" void P_childmean(std::string& option, nlohmann::json& record,
 
   if (count > 0) result /= count;
 
-  record[field] = std::to_string(result);
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
 }
 
 /**
- * @brief Child granularity's field aggregation, without skipping empty fields
+ * @brief Child ctx.getGranularity()'s ctx.getField() aggregation, without skipping empty fields
  *
  */
-extern "C" void P_childstdev(std::string& option, nlohmann::json& record,
-                             const std::string& granularity, const std::string& key,
-                             const std::string& field) {
-  // option contains out_pkt field name
+extern "C" void P_childstdev(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   double mean = 0.0f;
 
   std::vector<double> stat;
-  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
+
   size_t count = 0;
-  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
-    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
-    if (!cnt[option].is_null()) {
-      std::string val_str = cnt[option].get<std::string>();
+  const auto& opt = ctx.getOption();
+  for (auto& child_key : ctx.getChildKeys()) {
+    nlohmann::json& cnt = ctx.getChildRecord(child_key);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       stat.push_back(cur_value);
       mean += cur_value;
@@ -187,7 +187,7 @@ extern "C" void P_childstdev(std::string& option, nlohmann::json& record,
   }
 
   if (count <= 1) {  // undefined value
-    record[field] = std::to_string(-1);
+    ctx.getRecord()[ctx.getField()] = std::to_string(-1);
     return;
   }
 
@@ -203,139 +203,438 @@ extern "C" void P_childstdev(std::string& option, nlohmann::json& record,
   sampled_standard_deviation /= count - 1;  // sampled!
   sampled_standard_deviation = sqrt(sampled_standard_deviation);
 
-  record[field] = std::to_string(sampled_standard_deviation);
+  ctx.getRecord()[ctx.getField()] = std::to_string(sampled_standard_deviation);
 }
 
 /**
- * @brief Child granularity's field max, assuming double
+ * @brief Child ctx.getGranularity()'s ctx.getField() max, assuming double
  *
  */
-extern "C" void P_childmax_d(std::string& option, nlohmann::json& record,
-                             const std::string& granularity, const std::string& key,
-                             const std::string& field) {
-  // option contains out_pkt field name
+extern "C" void P_childmax_d(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   double result = std::numeric_limits<double>::lowest();
-  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
-  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
-    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
-    if (!cnt[option].is_null()) {
-      std::string val_str = cnt[option].get<std::string>();
+
+  const auto& opt = ctx.getOption();
+  for (auto& child_key : ctx.getChildKeys()) {
+    nlohmann::json& cnt = ctx.getChildRecord(child_key);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value > result) result = cur_value;
     }
   }
-  record[field] = std::to_string(result);
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
 }
 
 /**
- * @brief Child granularity's field min, assuming double
+ * @brief Child ctx.getGranularity()'s ctx.getField() min, assuming double
  *
  */
-extern "C" void P_childmin_d(std::string& option, nlohmann::json& record,
-                             const std::string& granularity, const std::string& key,
-                             const std::string& field) {
-  // option contains out_pkt field name
+extern "C" void P_childmin_d(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   double result = std::numeric_limits<double>::max();
-  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
-  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
-    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
-    if (!cnt[option].is_null()) {
-      std::string val_str = cnt[option].get<std::string>();
+
+  const auto& opt = ctx.getOption();
+  for (auto& child_key : ctx.getChildKeys()) {
+    nlohmann::json& cnt = ctx.getChildRecord(child_key);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value < result) result = cur_value;
     }
   }
-  record[field] = std::to_string(result);
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
 }
 
 /**
- * @brief Child granularity's field min, assuming double, update only when non-zero value found
+ * @brief Child ctx.getGranularity()'s ctx.getField() min, assuming double, update only when
+ * non-zero value found
  *
  */
-extern "C" void P_childnzmin_d(std::string& option, nlohmann::json& record,
-                               const std::string& granularity, const std::string& key,
-                               const std::string& field) {
-  // option contains out_pkt field name
+extern "C" void P_childnzmin_d(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   double result = std::numeric_limits<double>::max();
-  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
-  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
-    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
-    if (!cnt[option].is_null()) {
-      std::string val_str = cnt[option].get<std::string>();
+
+  const auto& opt = ctx.getOption();
+  for (auto& child_key : ctx.getChildKeys()) {
+    nlohmann::json& cnt = ctx.getChildRecord(child_key);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value > 0 && cur_value < result) result = cur_value;
     }
   }
-  record[field] = std::to_string(result);
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
 }
 
 /**
- * @brief Child granularity's field min, assuming double
+ * @brief Child ctx.getGranularity()'s ctx.getField() min, assuming double
  *
  */
-extern "C" void P_childmaxdiff_d(std::string& option, nlohmann::json& record,
-                                 const std::string& granularity, const std::string& key,
-                                 const std::string& field) {
-  // option contains out_pkt field name
+extern "C" void P_childmaxdiff_d(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   double max = std::numeric_limits<double>::lowest();
   double min = std::numeric_limits<double>::max();
-  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
-  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
-    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
-    if (!cnt[option].is_null()) {
-      std::string val_str = cnt[option].get<std::string>();
+
+  const auto& opt = ctx.getOption();
+  for (auto& child_key : ctx.getChildKeys()) {
+    nlohmann::json& cnt = ctx.getChildRecord(child_key);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       double cur_value = atof(val_str.c_str());
       if (cur_value > max) max = cur_value;
       if (cur_value < min) min = cur_value;
     }
   }
-  record[field] = std::to_string(max - min);
+  ctx.getRecord()[ctx.getField()] = std::to_string(max - min);
 }
 
 /**
- * @brief Child granularity's field max, assuming long long
+ * @brief Child ctx.getGranularity()'s ctx.getField() max, assuming long long
  *
  */
-extern "C" void P_childmax_ll(std::string& option, nlohmann::json& record,
-                              const std::string& granularity, const std::string& key,
-                              const std::string& field) {
-  // option contains out_pkt field name
+extern "C" void P_childmax_ll(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   long long result = std::numeric_limits<long long>::lowest();
-  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
-  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
-    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
-    if (!cnt[option].is_null()) {
-      std::string val_str = cnt[option].get<std::string>();
+
+  const auto& opt = ctx.getOption();
+  for (auto& child_key : ctx.getChildKeys()) {
+    nlohmann::json& cnt = ctx.getChildRecord(child_key);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       long long cur_value = atoll(val_str.c_str());
       if (cur_value > result) result = cur_value;
     }
   }
-  record[field] = std::to_string(result);
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
 }
 
 /**
- * @brief Child granularity's field min, assuming long long
+ * @brief Child ctx.getGranularity()'s ctx.getField() min, assuming long long
  *
  */
-extern "C" void P_childmin_ll(std::string& option, nlohmann::json& record,
-                              const std::string& granularity, const std::string& key,
-                              const std::string& field) {
-  // option contains out_pkt field name
+extern "C" void P_childmin_ll(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
   // idx contains flow idx
   long long result = std::numeric_limits<long long>::max();
-  std::string child_g = fpnt::d->g_lvs[fpnt::d->g_lv_idx[granularity] - 1];
-  for (auto& child_key : fpnt::d->out_child_keys[granularity][key]) {
-    nlohmann::json& cnt = fpnt::d->out[child_g][child_key];
-    if (!cnt[option].is_null()) {
-      std::string val_str = cnt[option].get<std::string>();
+
+  const auto& opt = ctx.getOption();
+  for (auto& child_key : ctx.getChildKeys()) {
+    nlohmann::json& cnt = ctx.getChildRecord(child_key);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
       long long cur_value = atoll(val_str.c_str());
       if (cur_value < result) result = cur_value;
     }
   }
-  record[field] = std::to_string(result);
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
+}
+
+// =========================================================================
+// INDEX-BASED CHILD ACCESS OPTIMIZATIONS (P_*_idx API)
+// =========================================================================
+
+/**
+ * @brief (Index-based API version) Child ctx.getGranularity()'s ctx.getField() sum, skipping empty
+ * fields; assuming long long
+ *
+ */
+extern "C" void P_childsum_ll_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // however, postfix '+' or '-' can be possible (assuming that ctx.getField() name does not allow
+  // postfix
+  // '+' or '-').
+  std::string fieldname = ctx.getOption();
+  bool check_dir, dir;
+
+  // check fieldname is empty
+  if (fieldname.empty()) {
+    exit(1);
+  }
+
+  // fieldname's last character
+  char lastChar = fieldname.back();
+
+  if (lastChar == '+') {
+    check_dir = true;
+    dir = true;
+    fieldname.pop_back();
+  } else if (lastChar == '-') {
+    check_dir = true;
+    dir = false;
+    fieldname.pop_back();
+  } else {  // otherwise
+    check_dir = false;
+    dir = false;
+  }
+
+  // idx contains flow idx
+  long long result = 0;
+
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[fieldname];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
+      long long temp = atoll(val_str.c_str());
+
+      if (check_dir) {  // we should check direction
+        long long dir_value
+            = atoll((cnt["__dir"].is_string() ? cnt["__dir"].get<std::string>() : "").c_str());
+        // different direction means no addition
+        if (dir && dir_value < 0) {
+          temp = 0;
+        }
+        if (!dir && dir_value > 0) {
+          temp = 0;
+        }
+      }
+
+      result += temp;
+    }
+  }
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
+}
+
+/**
+ * @brief (Index-based API version) Child ctx.getGranularity()'s ctx.getField() sum, skipping empty
+ * fields, assuming double
+ *
+ */
+extern "C" void P_childsum_d_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  double result = 0;
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
+      result += atof(val_str.c_str());
+    }
+  }
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
+}
+
+/**
+ * @brief (Index-based API version) Child ctx.getGranularity()'s ctx.getField() aggregation, without
+ * skipping empty fields
+ *
+ */
+extern "C" void P_childmean_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  double result = 0.0f;
+
+  size_t count = 0;
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
+      result += atof(val_str.c_str());
+      count++;
+    }
+  }
+
+  if (count > 0) result /= count;
+
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
+}
+
+/**
+ * @brief (Index-based API version) Child ctx.getGranularity()'s ctx.getField() aggregation, without
+ * skipping empty fields
+ *
+ */
+extern "C" void P_childstdev_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  double mean = 0.0f;
+
+  std::vector<double> stat;
+
+  size_t count = 0;
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
+      double cur_value = atof(val_str.c_str());
+      stat.push_back(cur_value);
+      mean += cur_value;
+      count++;
+    }
+  }
+
+  if (count <= 1) {  // undefined value
+    ctx.getRecord()[ctx.getField()] = std::to_string(-1);
+    return;
+  }
+
+  // always count > 0
+  mean /= count;
+
+  double sampled_standard_deviation = 0.0f;
+  for (auto& cur_value : stat) {
+    double deviation = cur_value - mean;
+    sampled_standard_deviation += deviation * deviation;
+  }
+
+  sampled_standard_deviation /= count - 1;  // sampled!
+  sampled_standard_deviation = sqrt(sampled_standard_deviation);
+
+  ctx.getRecord()[ctx.getField()] = std::to_string(sampled_standard_deviation);
+}
+
+/**
+ * @brief (Index-based API version) Child ctx.getGranularity()'s ctx.getField() max, assuming double
+ *
+ */
+extern "C" void P_childmax_d_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  double result = std::numeric_limits<double>::lowest();
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
+      double cur_value = atof(val_str.c_str());
+      if (cur_value > result) result = cur_value;
+    }
+  }
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
+}
+
+/**
+ * @brief (Index-based API version) Child ctx.getGranularity()'s ctx.getField() min, assuming double
+ *
+ */
+extern "C" void P_childmin_d_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  double result = std::numeric_limits<double>::max();
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
+      double cur_value = atof(val_str.c_str());
+      if (cur_value < result) result = cur_value;
+    }
+  }
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
+}
+
+/**
+ * @brief (Index-based API version) Child ctx.getGranularity()'s ctx.getField() min, assuming
+ * double, update only when non-zero value found
+ *
+ */
+extern "C" void P_childnzmin_d_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  double result = std::numeric_limits<double>::max();
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
+      double cur_value = atof(val_str.c_str());
+      if (cur_value > 0 && cur_value < result) result = cur_value;
+    }
+  }
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
+}
+
+/**
+ * @brief (Index-based API version) Child ctx.getGranularity()'s ctx.getField() min, assuming double
+ *
+ */
+extern "C" void P_childmaxdiff_d_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  double max = std::numeric_limits<double>::lowest();
+  double min = std::numeric_limits<double>::max();
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
+      double cur_value = atof(val_str.c_str());
+      if (cur_value > max) max = cur_value;
+      if (cur_value < min) min = cur_value;
+    }
+  }
+  ctx.getRecord()[ctx.getField()] = std::to_string(max - min);
+}
+
+/**
+ * @brief (Index-based API version) Child ctx.getGranularity()'s ctx.getField() max, assuming long
+ * long
+ *
+ */
+extern "C" void P_childmax_ll_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  long long result = std::numeric_limits<long long>::lowest();
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
+      long long cur_value = atoll(val_str.c_str());
+      if (cur_value > result) result = cur_value;
+    }
+  }
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
+}
+
+/**
+ * @brief (Index-based API version) Child ctx.getGranularity()'s ctx.getField() min, assuming long
+ * long
+ *
+ */
+extern "C" void P_childmin_ll_idx(fpnt::PluginContext& ctx) {
+  // ctx.getOption() contains out_pkt ctx.getField() name
+  // idx contains flow idx
+  long long result = std::numeric_limits<long long>::max();
+
+  const auto& opt = ctx.getOption();
+  for (size_t child_idx : ctx.getChildIdxs()) {
+    nlohmann::json& cnt = ctx.getChildRecordByIdx(child_idx);
+    auto& val = cnt[opt];
+    if (!val.is_null()) {
+      std::string val_str = val.is_string() ? val.get<std::string>() : "";
+      long long cur_value = atoll(val_str.c_str());
+      if (cur_value < result) result = cur_value;
+    }
+  }
+  ctx.getRecord()[ctx.getField()] = std::to_string(result);
 }

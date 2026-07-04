@@ -1,10 +1,12 @@
 #include <fpnt/dispatcher.h>
+#include <fpnt/plugin_context.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <csignal>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <thread>
@@ -59,6 +61,7 @@ namespace fpnt {
     out_idx2key.clear();
     out_key2idx.clear();
     out_child_keys.clear();
+    out_child_idxs.clear();
     for (size_t i = 0; i < g_lvs.size(); i++) {
       g_lv_idx[g_lvs[i]] = i;
       idxs.push_back(-1);
@@ -69,9 +72,6 @@ namespace fpnt {
 
     force_remove = config["force_remove"].get<bool>();
     // std::cout << csv_path << std::endl;
-
-    Dispatcher** d = (Dispatcher**)loader.getDispatcherPtr();
-    *d = this;
 
     chkOutputDir(out_path, force_remove);
 
@@ -101,6 +101,7 @@ namespace fpnt {
     out_idx2key.clear();
     out_key2idx.clear();
     out_child_keys.clear();
+    out_child_idxs.clear();
     for (size_t i = 0; i < g_lvs.size(); i++) {
       idxs.push_back(-1);
       out_readers.push_back(CSVReader(csv_path + "output_" + g_lvs[i] + ".csv"));
@@ -121,7 +122,7 @@ namespace fpnt {
     }
 
     TSharkOutputReader reader_out_tshark(config, in_map, in_pkts, get_in_filepath(),
-                                         ctr_bool ? getpid() : -1);
+                                         ctr_bool ? getpid() : -1, file_idx);
 
     reader_out_tshark.read();  // in_pkts will be filled by invoking this function.
 
@@ -172,7 +173,7 @@ namespace fpnt {
           counter++;
           child_processes.insert(rc);
           //          std::cout << "Counter: " << no_processes << std::endl;
-          if (child_processes.size() >= max_concurrency - 1) {
+          if (child_processes.size() >= std::max(2u, max_concurrency) - 1) {
             int wc = wait(NULL);
             if (wc == -1) {
               if (errno != ECHILD) {
@@ -233,7 +234,7 @@ namespace fpnt {
     }
 
     // preparation of key generation
-    std::vector<fnptr_genKeyFn> genKeyFns;
+    std::vector<KeyGenerator*> genKeyFns;
     for (size_t i = 0; i < g_lvs.size(); i++) {
       genKeyFns.push_back(loader.getGenKeyFn(config["genKey_" + g_lvs[i]]));
     }
@@ -243,30 +244,49 @@ namespace fpnt {
 
     // this loop assumes that one in_pkt == one out_pkt
     // so that after generating keys out pkts are inserted immediately
+    for (size_t i = 0; i < g_lvs.size(); i++) {
+      out_idx2key[g_lvs[i]].reserve(in_pkts.size());
+      out_child_idxs[g_lvs[i]].reserve(in_pkts.size());
+      out[g_lvs[i]].reserve(in_pkts.size());
+    }
+    std::vector<std::string> keys(g_lvs.size());
+
     for (size_t idx = 0; idx < in_pkts.size(); idx++) {  // for each in_pkt
       in_pkt_idx = idx;
 
-      std::vector<std::string> keys(g_lvs.size());
-      std::vector<std::string> idxs(g_lvs.size());
       for (size_t i = 0; i < g_lvs.size(); i++) {
         size_t cnt = (g_lvs.size() - 1)
                      - i;  // iterate from the top (the most grouped) granularity to the bottom
-        keys[cnt] = genKeyFns[cnt](in_pkts[idx], g_lvs[cnt], keys[cnt]);
+        const auto& entry = genKeyFns[cnt]->getKey(in_pkts[idx], g_lvs[cnt], file_idx);
+        keys[cnt] = entry.key_str;
 
-        in_pkts[idx]["__" + g_lvs[cnt] + "_key"]
-            = keys[cnt];  // inject the generated key to in_pkts
+        // std::cout << "key_data: " << entry.key_data << std::endl;
 
-        size_t cnt_idx = out_keys[g_lvs[cnt]].size();
-        auto result
-            = out_keys[g_lvs[cnt]].insert(keys[cnt]);  // inject the generated key to out_keys
+        for (auto it = entry.key_data.begin(); it != entry.key_data.end(); ++it) {
+          in_pkts[idx][it.key()] = it.value();
+        }
+
+        // in_pkts[idx]["__" + g_lvs[cnt] + "_key"] = keys[cnt];  // inject the generated key to
+        // in_pkts
+
+        size_t cnt_idx;
+        auto result = out_keys[g_lvs[cnt]].insert(keys[cnt]);
+        if (result.second) {
+          cnt_idx = out_keys[g_lvs[cnt]].size() - 1;
+        } else {
+          cnt_idx = out_key2idx[g_lvs[cnt]][keys[cnt]];
+        }
+        in_pkts[idx]["__" + g_lvs[cnt] + "_idx"] = cnt_idx;
 
         if (result.second) {  // create a record object if a new key is injected to out_keys
+          out_child_idxs[g_lvs[cnt]].push_back(std::vector<size_t>());
+
           nlohmann::json out_obj;
           out_obj["__in_idx"] = idx;
           // std::cout << "__in_idx: " << idx << " g_lvs[cnt] " << g_lvs[cnt] << " " << keys[cnt] <<
           // " idx2keysize " << out_idx2key[g_lvs[cnt]].size() << " key2idxsize " <<
           // out_key2idx[g_lvs[cnt]].size() << std::endl;
-          out[g_lvs[cnt]][keys[cnt]] = out_obj;
+          out[g_lvs[cnt]].push_back(out_obj);
           // out_idx2key[g_lvs[cnt]][cnt_idx] = keys[cnt];
           out_idx2key[g_lvs[cnt]].push_back(keys[cnt]);
           out_key2idx[g_lvs[cnt]][keys[cnt]] = cnt_idx;
@@ -274,24 +294,44 @@ namespace fpnt {
           // std::cout << "[DEBUG] ----- New Record in " << g_lvs[cnt] << " with key " << keys[cnt]
           // << std::endl;
 
-          for (size_t j = cnt; j < g_lvs.size(); j++) {
-            for (size_t k = j; k < g_lvs.size(); k++) {
-              out[g_lvs[j]][keys[j]]["__" + g_lvs[k] + "_key"] = keys[k];
-              // std::cout << "" << g_lvs[j] << "'s record " << keys[j] << "now has __" << g_lvs[k]
-              // << "_key field with value:" << keys[k] <<std::endl;
+          if (cnt + 1 < g_lvs.size()) {
+            size_t parent_idx = idxs[cnt + 1];
+            auto& child_idx_vec = out_child_idxs[g_lvs[cnt + 1]][parent_idx];
+            if (child_idx_vec.capacity() == 0) {
+              child_idx_vec.reserve(2);
             }
-            out[g_lvs[j]][keys[j]]["__" + g_lvs[cnt] + "_idx"] = cnt_idx;  // =idxs[cnt]
+            child_idx_vec.push_back(cnt_idx);
 
-            if (j == cnt + 1) {  // in case of parent
-              out_child_keys[g_lvs[j]][keys[j]].push_back(keys[cnt]);
+            auto& child_vec = out_child_keys[g_lvs[cnt + 1]][keys[cnt + 1]];
+            if (child_vec.capacity() == 0) {
+              child_vec.reserve(2);
             }
+            child_vec.push_back(keys[cnt]);
           }
         } else {  // if it is an existing key, cnt_idx points to the corresponding out record object
           cnt_idx = out_key2idx[g_lvs[cnt]][keys[cnt]];
         }
         idxs[cnt] = cnt_idx;
-        // new keys[cnt] idxs[cnt] have appropriate values
+        // new keys[cnt] have appropriate values
       }
+    }
+
+    for (size_t i = 0; i < g_lvs.size(); i++) {
+      out_idx2key[g_lvs[i]].shrink_to_fit();
+      out_child_idxs[g_lvs[i]].shrink_to_fit();
+    }
+    for (auto& [g, map] : out_child_keys) {
+      for (auto& [k, vec] : map) {
+        vec.shrink_to_fit();
+      }
+    }
+    for (auto& [g, vec_of_vecs] : out_child_idxs) {
+      for (auto& vec : vec_of_vecs) {
+        vec.shrink_to_fit();
+      }
+    }
+    for (size_t i = 0; i < g_lvs.size(); i++) {
+      out[g_lvs[i]].shrink_to_fit();
     }
   }
 
@@ -305,11 +345,15 @@ namespace fpnt {
 
     auto out_fields = out_maps[granularity].getFields();
 
-    // optimization for prep_fns_opts; more optimization is needed
-    std::vector<std::vector<std::pair<std::string, std::string>>> vec_prep_fns_opts;
+    // optimization for prep_fns_opts
+    std::vector<std::vector<std::pair<fnptr_PrepFn, std::string>>> vec_prep_fns_opts;
     for (auto& out_field : out_fields) {
       auto prep_fns_opts = out_maps[granularity].getPrepFns(out_field);
-      vec_prep_fns_opts.push_back(prep_fns_opts);
+      std::vector<std::pair<fnptr_PrepFn, std::string>> field_prep_fns;
+      for (auto& [str_fn, option] : prep_fns_opts) {
+        field_prep_fns.push_back({loader.getPrepFn(str_fn), option});
+      }
+      vec_prep_fns_opts.push_back(field_prep_fns);
     }
 
 #ifndef NDEBUG
@@ -322,13 +366,13 @@ namespace fpnt {
 
       const std::string& cnt_out_key = out_idx2key[granularity][idx];
       // const size_t cnt_out_idx = out_key2idx[granularity][cnt_out_key];
-      nlohmann::json* record_ptr = &out[granularity][cnt_out_key];
+      nlohmann::json* record_ptr = &out[granularity][idx];
 
       size_t field_idx = 0;
       for (auto& out_field : out_fields) {
-        for (auto& [str_fn, option] : vec_prep_fns_opts[field_idx]) {
-          auto prep_fn = loader.getPrepFn(str_fn);
-          prep_fn(option, *record_ptr, granularity, cnt_out_key, out_field);
+        for (auto& [prep_fn, option] : vec_prep_fns_opts[field_idx]) {
+          fpnt::PluginContext ctx(this, option, *record_ptr, granularity, cnt_out_key, out_field);
+          prep_fn(ctx);
         }
 
         if ((*record_ptr)[out_field].is_null()) {
@@ -382,16 +426,15 @@ namespace fpnt {
       }
     }
 
-    csv::CSVWriter<std::ostream>* stdout_writer = nullptr;
+    std::unique_ptr<csv::CSVWriter<std::ostream>> stdout_writer;
     if (print_stdout) {
-      stdout_writer = new csv::CSVWriter<std::ostream>(std::cout, false);
+      stdout_writer = std::make_unique<csv::CSVWriter<std::ostream>>(std::cout, false);
       *stdout_writer << (cur_map->getFields());
     }
 
     // size_t size_fields = cur_map->getFields().size();
     for (size_t idx = 0; idx < out_idx2key[granularity].size(); idx++) {
-      const std::string& cnt_out_key = out_idx2key[granularity][idx];
-      auto& row = out[granularity][cnt_out_key];
+      auto& row = out[granularity][idx];
 
       std::vector<std::string> row_vector;
       for (auto& field : cur_map->getFields()) {
@@ -401,39 +444,45 @@ namespace fpnt {
       csv_writer << row_vector;
       if (stdout_writer) *stdout_writer << row_vector;
     }
-    if (stdout_writer) delete stdout_writer;
   }
 
   size_t Dispatcher::get_idx(std::string key, std::string from, std::string to) {  // v0.3
-    nlohmann::json* cnt_obj = &out[from][key];
     if (to == "eq" || from == to) {
-      return (*cnt_obj)["__" + to + "_idx"].get<size_t>();
+      return out_key2idx[from][key];
     }
 
     if (g_lv_idx[from] > g_lv_idx[to]) {
-      std::cerr << "please use get_idxs to access lower granuality records!" << std::endl;
-      exit(1);
+      std::vector<size_t> child_idxs = get_idxs(key, from, to);
+      if (child_idxs.empty()) return -1;
+      return child_idxs[0];
     }
 
     // now g_lv_idx[from] < g_lv_idx[to]
-    return (*cnt_obj)["__" + to + "_idx"].get<size_t>();
+    size_t idx = out_key2idx[from].at(key);
+    nlohmann::json* cnt_obj = &out[from][idx];
+    size_t in_idx = (*cnt_obj)["__in_idx"].get<size_t>();
+    return in_pkts[in_idx]["__" + to + "_idx"].get<size_t>();
   }
 
   /*
    */
   std::string Dispatcher::get_key(std::string key, std::string from, std::string to) {  // v0.3
-    nlohmann::json* cnt_obj = &out[from][key];
     if (to == "eq" || from == to) {
-      return (*cnt_obj)["__" + to + "_key"].get<std::string>();
+      return key;
     }
 
     if (g_lv_idx[from] > g_lv_idx[to]) {
-      std::cerr << "please use get_idxs to access lower granuality records!" << std::endl;
-      exit(1);
+      std::vector<std::string> child_keys = get_keys(key, from, to);
+      if (child_keys.empty()) return "";
+      return child_keys[0];
     }
 
     // now g_lv_idx[from] < g_lv_idx[to]
-    return (*cnt_obj)["__" + to + "_key"].get<std::string>();
+    size_t idx = out_key2idx[from].at(key);
+    nlohmann::json* cnt_obj = &out[from][idx];
+    size_t in_idx = (*cnt_obj)["__in_idx"].get<size_t>();
+    size_t to_idx = in_pkts[in_idx]["__" + to + "_idx"].get<size_t>();
+    return out_idx2key[to][to_idx];
   }
 
   std::vector<size_t> Dispatcher::get_idxs(std::string key, std::string from,
@@ -669,6 +718,66 @@ namespace fpnt {
       std::cout << std::endl;
     }
     std::cout << std::endl;
+  }
+
+  PluginContext::PluginContext(Dispatcher* d, const std::string& option, nlohmann::json& record,
+                               const std::string& granularity, const std::string& key,
+                               const std::string& field)
+      : d(d), option(option), record(&record), granularity(granularity), key(key), field(field) {}
+
+  const std::string& PluginContext::getOption() const { return option; }
+  nlohmann::json& PluginContext::getRecord() const { return *record; }
+  const std::string& PluginContext::getGranularity() const { return granularity; }
+  const std::string& PluginContext::getKey() const { return key; }
+  const std::string& PluginContext::getField() const { return field; }
+
+  const std::vector<std::string>& PluginContext::getChildKeys() const {
+    return d->out_child_keys[granularity].at(key);
+  }
+
+  nlohmann::json& PluginContext::getChildRecord(const std::string& child_key) const {
+    std::string child_g = d->g_lvs[d->g_lv_idx[granularity] - 1];
+    size_t child_idx = d->out_key2idx[child_g].at(child_key);
+    return d->out[child_g][child_idx];
+  }
+
+  size_t PluginContext::getIndex() const { return d->out_key2idx[granularity].at(key); }
+
+  const std::vector<size_t>& PluginContext::getChildIdxs() const {
+    size_t parent_idx = d->out_key2idx[granularity].at(key);
+    return d->out_child_idxs[granularity][parent_idx];
+  }
+
+  nlohmann::json& PluginContext::getChildRecordByIdx(size_t child_idx) const {
+    std::string child_g = d->g_lvs[d->g_lv_idx[granularity] - 1];
+    return d->out[child_g][child_idx];
+  }
+
+  size_t PluginContext::getIdx(std::string key, std::string from, std::string to) const {
+    return d->get_idx(key, from, to);
+  }
+  std::string PluginContext::getKey(std::string key, std::string from, std::string to) const {
+    return d->get_key(key, from, to);
+  }
+  std::vector<size_t> PluginContext::getIdxs(std::string key, std::string from,
+                                             std::string to) const {
+    return d->get_idxs(key, from, to);
+  }
+  std::vector<std::string> PluginContext::getKeys(std::string key, std::string from,
+                                                  std::string to) const {
+    return d->get_keys(key, from, to);
+  }
+
+  std::vector<nlohmann::json>& PluginContext::getInPkts() const { return d->in_pkts; }
+  fpnt::TSharkMapper& PluginContext::getInMap() const { return d->in_map; }
+  std::unordered_map<std::string, std::unordered_map<std::string, size_t>>&
+  PluginContext::getOutKey2Idx() const {
+    return d->out_key2idx;
+  }
+  nlohmann::json& PluginContext::getRecordByGranularity(const std::string& g,
+                                                        const std::string& k) const {
+    size_t target_idx = d->out_key2idx[g].at(k);
+    return d->out[g][target_idx];
   }
 
 }  // namespace fpnt
