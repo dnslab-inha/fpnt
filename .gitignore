@@ -6,3 +6,4 @@
 /out*
 /dfref*
 /in_pcap*
+compile_commands.json

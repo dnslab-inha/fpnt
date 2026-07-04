@@ -1,6 +1,7 @@
 #include <fpnt/loader.h>
 
 #if defined(__APPLE__)
+#  include <cstdio>
 #  include <sstream>
 #elif defined(__linux__)
 #  include <elf.h>   // ELF64_Sym
@@ -31,10 +32,15 @@ namespace fpnt {
     // On macOS, use `nm` to list symbols as there is no `dlinfo`.
     // This requires Xcode Command Line Tools to be installed.
     bool find_dispatcher_ptr = false;
-    redi::pstream nm_process("nm -gU " + library_path);
-    std::string line;
+    FILE* pipe = popen(("nm -gU " + library_path).c_str(), "r");
+    if (!pipe) {
+      std::cerr << "Failed to run nm command" << std::endl;
+      exit(1);
+    }
 
-    while (std::getline(nm_process, line)) {
+    char buffer[256];
+    while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+      std::string line(buffer);
       std::stringstream ss(line);
       std::string address, type, name;
       ss >> address >> type >> name;
@@ -56,6 +62,8 @@ namespace fpnt {
           map_genkeyfns[str_fn] = NULL;
         }
       }
+    }
+    pclose(pipe);
 #elif defined(__linux__)
     struct link_map* map = nullptr;
     dlinfo(handle, RTLD_DI_LINKMAP, &map);
@@ -93,64 +101,64 @@ namespace fpnt {
       }
     }
 #endif
+  }
+
+  bool Loader::validate(const std::string& str_fn) {
+    if (str_fn.rfind("P_", 0) == 0) {
+      return map_fns.contains(str_fn);
+    } else if (str_fn.rfind("genKey_", 0) == 0) {
+      return map_genkeyfns.contains(str_fn);
+    }
+    return false;
+  }
+
+  fnptr_PrepFn Loader::getPrepFn(std::string& str_fn) {
+    fnptr_PrepFn fnptr = NULL;
+    if (map_fns.contains(str_fn) && map_fns[str_fn] != NULL) return map_fns[str_fn];
+
+    // if the fnptr is not available
+    if (str_fn.substr(0, 2) != "P_") {
+      std::cerr << "getPrepFn: the given string does not satisfy the prefix rule 'P_'!"
+                << std::endl;
+      exit(1);
     }
 
-    bool Loader::validate(const std::string& str_fn) {
-      if (str_fn.rfind("P_", 0) == 0) {
-        return map_fns.contains(str_fn);
-      } else if (str_fn.rfind("genKey_", 0) == 0) {
-        return map_genkeyfns.contains(str_fn);
-      }
-      return false;
+    char* error;
+    void* new_fnptr = dlsym(handle, str_fn.c_str());
+    if ((error = dlerror()) != NULL) {
+      std::cerr << error << std::endl;
+      exit(1);
     }
 
-    fnptr_PrepFn Loader::getPrepFn(std::string & str_fn) {
-      fnptr_PrepFn fnptr = NULL;
-      if (map_fns.contains(str_fn) && map_fns[str_fn] != NULL) return map_fns[str_fn];
+    fnptr = (fnptr_PrepFn)new_fnptr;
+    map_fns[str_fn] = fnptr;
 
-      // if the fnptr is not available
-      if (str_fn.substr(0, 2) != "P_") {
-        std::cerr << "getPrepFn: the given string does not satisfy the prefix rule 'P_'!"
-                  << std::endl;
-        exit(1);
-      }
+    return fnptr;
+  }
 
-      char* error;
-      void* new_fnptr = dlsym(handle, str_fn.c_str());
-      if ((error = dlerror()) != NULL) {
-        std::cerr << error << std::endl;
-        exit(1);
-      }
+  KeyGenerator* Loader::getGenKeyFn(const std::string& str_fn) {
+    if (map_genkeyfns.contains(str_fn) && map_genkeyfns[str_fn] != NULL)
+      return map_genkeyfns[str_fn];
 
-      fnptr = (fnptr_PrepFn)new_fnptr;
-      map_fns[str_fn] = fnptr;
-
-      return fnptr;
+    if (str_fn.substr(0, 7) != "genKey_") {
+      std::cerr << "getGenKeyFn: the given string does not satisfy the prefix rule 'genKey_'!"
+                << std::endl;
     }
 
-    KeyGenerator* Loader::getGenKeyFn(const std::string& str_fn) {
-      if (map_genkeyfns.contains(str_fn) && map_genkeyfns[str_fn] != NULL)
-        return map_genkeyfns[str_fn];
+    std::string factory_fn_name = "create_" + str_fn;
 
-      if (str_fn.substr(0, 7) != "genKey_") {
-        std::cerr << "getGenKeyFn: the given string does not satisfy the prefix rule 'genKey_'!"
-                  << std::endl;
-      }
-
-      std::string factory_fn_name = "create_" + str_fn;
-
-      char* error;
-      void* new_fnptr = dlsym(handle, factory_fn_name.c_str());
-      if ((error = dlerror()) != NULL) {
-        std::cerr << error << std::endl;
-        exit(1);
-      }
-
-      fnptr_createKeyGenFn factory = (fnptr_createKeyGenFn)new_fnptr;
-      KeyGenerator* keygen = factory();
-      map_genkeyfns[str_fn] = keygen;
-
-      return keygen;
+    char* error;
+    void* new_fnptr = dlsym(handle, factory_fn_name.c_str());
+    if ((error = dlerror()) != NULL) {
+      std::cerr << error << std::endl;
+      exit(1);
     }
 
-  }  // namespace fpnt
+    fnptr_createKeyGenFn factory = (fnptr_createKeyGenFn)new_fnptr;
+    KeyGenerator* keygen = factory();
+    map_genkeyfns[str_fn] = keygen;
+
+    return keygen;
+  }
+
+}  // namespace fpnt

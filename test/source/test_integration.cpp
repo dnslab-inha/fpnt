@@ -5,19 +5,19 @@
 #include <string>
 
 #ifndef FPNT_EXECUTABLE_PATH
-#define FPNT_EXECUTABLE_PATH ""
+#  define FPNT_EXECUTABLE_PATH ""
 #endif
 
 #ifndef FPNT_PLUGIN_PATH
-#define FPNT_PLUGIN_PATH ""
+#  define FPNT_PLUGIN_PATH ""
 #endif
 
 #ifndef FPNT_SOURCE_DIR
-#define FPNT_SOURCE_DIR ""
+#  define FPNT_SOURCE_DIR ""
 #endif
 
 #ifndef FPNT_BINARY_DIR
-#define FPNT_BINARY_DIR ""
+#  define FPNT_BINARY_DIR ""
 #endif
 
 static bool dir_exists(const std::string& path) {

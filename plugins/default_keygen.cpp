@@ -286,7 +286,7 @@ class GenKey_flow_ipv4 : public fpnt::KeyGenerator {
 public:
   GenKey_flow_ipv4()
       : fpnt::KeyGenerator(
-            {"ip.src", "tcp.srcport", "udp.srcport", "udp.dstport", "ip.dst", "tcp.dstport"}) {}
+          {"ip.src", "tcp.srcport", "udp.srcport", "udp.dstport", "ip.dst", "tcp.dstport"}) {}
   nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
     const auto& pkt = ctx.pkt;
     [[maybe_unused]] auto& granularity = ctx.granularity;
@@ -557,7 +557,7 @@ class GenKey_flow_directional_ipv4 : public fpnt::KeyGenerator {
 public:
   GenKey_flow_directional_ipv4()
       : fpnt::KeyGenerator(
-            {"ip.src", "tcp.srcport", "udp.srcport", "udp.dstport", "ip.dst", "tcp.dstport"}) {}
+          {"ip.src", "tcp.srcport", "udp.srcport", "udp.dstport", "ip.dst", "tcp.dstport"}) {}
   nlohmann::json genKey(const fpnt::KeyGenContext& ctx) override {
     const auto& pkt = ctx.pkt;
     [[maybe_unused]] auto& granularity = ctx.granularity;
