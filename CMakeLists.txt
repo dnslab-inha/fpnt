@@ -164,7 +164,7 @@ file(
 find_program(CLANG_FORMAT clang-format)
 if(CLANG_FORMAT)
   add_custom_target(
-    format
+    format-cpp
     COMMAND ${CLANG_FORMAT} -i -style=file ${ALL_CXX_SOURCES}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Formatting C++ code with clang-format"

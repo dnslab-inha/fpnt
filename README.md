@@ -150,7 +150,7 @@ Designed for traditional L3/L4/L7 network traffic analysis (MTA).
 
 ```bash
 # Format all C++ code (requires clang-format)
-cmake --build ./build --target format
+cmake --build ./build --target format-cpp
 
 # Format CMakeLists.txt (requires cmake-format)
 cmake --build ./build --target format-cmake
