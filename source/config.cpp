@@ -15,6 +15,7 @@ namespace fpnt {
     std::string outputPath = "";     // default: defined in the config file
     std::string outputType = "";     // default: defined in the config file
     std::string pluginsPath = "";    // default: defined in the config file
+    bool skipDfrefValidation = false;
 
     app.add_option("-c,--configpath", configPath, "Path of configuration JSON file");
     app.add_option("-i,--input_pcap", inputPcapPath, "Input pcap path");
@@ -22,6 +23,8 @@ namespace fpnt {
     app.add_option("-t,--output-type", outputType,
                    "Output file type (Currently only CSV is supported)");
     app.add_option("-p,--plugins-path", pluginsPath, "Plugins shared object file (.so file) path");
+    app.add_flag("--skip-dfref-validation", skipDfrefValidation,
+                 "Skip dfref validation of tshark display filter fields");
 
     try {
       app.parse(argc, argv);
@@ -42,6 +45,9 @@ namespace fpnt {
     if (outputPath != "") config["output_path"] = outputPath;
 
     if (pluginsPath != "") config["plugins_path"] = pluginsPath;
+
+    if (skipDfrefValidation) config["skip_dfref_validation"] = true;
+    if (!config.contains("skip_dfref_validation")) config["skip_dfref_validation"] = false;
 
     // TODO: CSV output_type override
 

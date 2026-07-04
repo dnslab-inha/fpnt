@@ -54,6 +54,7 @@ namespace fpnt {
     int major;
     int minor;
     int patch;
+    bool skip_validation;
 
     bool compareVersion(std::string);
     FILE* in;
@@ -62,9 +63,10 @@ namespace fpnt {
     TSharkMapper map;
     TSharkCSVReader() = delete;
     TSharkCSVReader(std::string tshark_path, std::string path, std::string dfref_path,
-                    csv::CSVFormat format = default_CSVFormat())
+                    bool skip_validation = false, csv::CSVFormat format = default_CSVFormat())
         : CSVReader(path, format), in(popen((tshark_path + " -v").c_str(), "r")) {
       this->dfref_path = dfref_path;
+      this->skip_validation = skip_validation;
     }
     ~TSharkCSVReader() {
       if (in) pclose(in);

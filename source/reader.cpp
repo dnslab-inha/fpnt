@@ -153,11 +153,13 @@ namespace fpnt {
     //    std::cout << "READ: " << path << std::endl;
     std::unordered_map<std::string, std::vector<std::string> > dfref_dirs;
 
-    for (auto const& dir_entry : std::filesystem::directory_iterator{dfref_path}) {
-      if (std::filesystem::is_directory(dir_entry.symlink_status())) {
-        std::string dirname = std::filesystem::relative(dir_entry, dfref_path);
-        if (dirname.length() == 1) {
-          dfref_dirs.insert({dirname, std::vector<std::string>()});
+    if (!skip_validation) {
+      for (auto const& dir_entry : std::filesystem::directory_iterator{dfref_path}) {
+        if (std::filesystem::is_directory(dir_entry.symlink_status())) {
+          std::string dirname = std::filesystem::relative(dir_entry, dfref_path);
+          if (dirname.length() == 1) {
+            dfref_dirs.insert({dirname, std::vector<std::string>()});
+          }
         }
       }
     }
@@ -197,6 +199,11 @@ namespace fpnt {
       // hereafter, field exists and is unique
       // name can be empty so we need to fill name
       // now we need to find desc, type, ver
+
+      if (skip_validation) {
+        map.addField(field, name, "", "");
+        continue;
+      }
 
       // note: dfref has a substantial locality
 

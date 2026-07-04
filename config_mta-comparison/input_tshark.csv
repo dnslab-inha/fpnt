@@ -1,6 +1,8 @@
 "tshark_displayfilter_field","name"
 "_ws.col.def_src","Src"
 "_ws.col.def_dst","Dst"
+"ip.src","IP Source"
+"ip.dst","IP Destination"
 "tcp.srcport","SrcPort(TCP)"
 "udp.srcport","SrcPort(UDP)"
 "tcp.dstport","DstPort(TCP)"
