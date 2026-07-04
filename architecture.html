@@ -24,6 +24,7 @@
       <div id="m-navbar-collapse" class="m-col-t-12 m-show-m m-col-m-none m-right-m">
         <div class="m-row">
           <ol class="m-col-t-6 m-col-m-none">
+            <li><a href="about.html">About fpnt</a></li>
             <li>
               <a href="pages.html">Getting Started</a>
               <ol>
@@ -39,7 +40,7 @@
               </ol>
             </li>
           </ol>
-          <ol class="m-col-t-6 m-col-m-none" start="3">
+          <ol class="m-col-t-6 m-col-m-none" start="4">
             <li><a href="annotated.html">Classes</a></li>
             <li><a href="files.html">Files</a></li>
             <li class="m-show-m"><a href="#search" class="m-doc-search-icon" title="Search" onclick="return showSearch()"><svg style="height: 0.9rem;" viewBox="0 0 16 16">
@@ -61,9 +62,23 @@
         <nav class="m-block m-default">
           <h3>Contents</h3>
           <ul>
+            <li><a href="#intro">Introduction</a></li>
             <li>
-              <a href="#intro">Introduction</a>
+              <a href="#workflow">The Core Pipeline Workflow</a>
               <ul>
+                <li><a href="#stage1">Stage 1: Setup and Configuration Parsing</a></li>
+                <li><a href="#stage2">Stage 2: Multiprocessing and Subprocess Dispatch</a></li>
+                <li><a href="#stage3">Stage 3: PCAP Decoding via TSharkOutputReader</a></li>
+                <li><a href="#stage4">Stage 4: Key Generation and Data Structuring</a></li>
+                <li><a href="#stage5">Stage 5: Iterative Preprocessing</a></li>
+                <li><a href="#stage6">Stage 6: Exporting</a></li>
+              </ul>
+            </li>
+            <li>
+              <a href="#v040_arch">What&#x27;s New in v0.40: Architectural Optimizations</a>
+              <ul>
+                <li><a href="#v040_vectorized">Vectorized Internal Storage</a></li>
+                <li><a href="#v040_idx_api">Index-Based Plugin API</a></li>
                 <li><a href="#v040_c_popen">Standard C-style </a></li>
               </ul>
             </li>
@@ -77,168 +92,7 @@
             </li>
           </ul>
         </nav>
-<section id="intro"><h2><a href="#intro">Introduction</a></h2><p><code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> is an open-source C++ framework designed to tackle the engineering bottlenecks associated with extracting high-dimensional, multi-granular features from network traffic. While most state-of-the-art preprocessing tools tightly couple their protocol parsing logic with fixed data structures (e.g., standard 5-tuple flows), <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> fully decouples these concerns. It delegates the complex, ever-evolving task of protocol dissection to <code>tshark</code> (the terminal-based engine of Wireshark) and focuses its core architecture entirely on flexible data aggregation, key generation, and feature preprocessing.</p><p>This architectural decoupling enables researchers to rapidly prototype custom traffic granularities (e.g., bidirectional flows, channel flowsets, or physical-layer BFM events) and chain mathematical transformations without modifying the framework&#x27;s core engine. The entire pipeline is driven by simple CSV schemas and dynamically loaded plugins, effectively reducing the engineering overhead of adding a new feature from hundreds of lines of complex C/C++ code to zero.</p><figure class="m-figure"><img src="Figure1.png" alt="Image" /><figcaption>Figure 1: Overall architecture of fpnt illustrating </figcaption></figure><p>the multi-level feature extraction pipeline for packet, flow, and flowset granularities.&quot;
-
-@section workflow The Core Pipeline Workflow
-
-The execution of &lt;tt&gt;fpnt&lt;/tt&gt; follows a highly structured, deterministic pipeline 
-designed to process PCAP files iteratively. The overall architecture, as 
-depicted in Figure 1, comprises several key stages:
-
-@subsection stage1 Stage 1: Setup and Configuration Parsing
-When the &lt;tt&gt;fpnt&lt;/tt&gt; executable is launched, it first parses the command-line 
-arguments and the &lt;tt&gt;config.json&lt;/tt&gt; file. This initialization phase is critical for 
-establishing the data schemas that will be used throughout the execution.
-
-1. &lt;strong&gt;Global Configuration Setup&lt;/strong&gt;: The framework reads &lt;tt&gt;config.json&lt;/tt&gt; to 
-determine global behaviors, such as whether to enable multiprocessing, how many 
-CPU cores to utilize, and which &lt;tt&gt;tshark&lt;/tt&gt; display filters to apply to the input 
-PCAP files.
-2. &lt;strong&gt;Reader Initialization&lt;/strong&gt;: The framework utilizes &lt;tt&gt;Reader&lt;/tt&gt; objects to parse 
-the CSV configuration files (e.g., &lt;tt&gt;input_tshark.csv&lt;/tt&gt;, &lt;tt&gt;output_pkt.csv&lt;/tt&gt;, 
-&lt;tt&gt;output_flow.csv&lt;/tt&gt;). Each CSV defines the fields to be extracted or calculated 
-for a specific granularity level.
-3. &lt;strong&gt;Field Mapping and Validation&lt;/strong&gt;: For each granularity level specified in 
-the configuration, &lt;tt&gt;fpnt&lt;/tt&gt; constructs a &lt;tt&gt;Mapper&lt;/tt&gt; object. The &lt;tt&gt;Mapper&lt;/tt&gt; validates 
-the requested &lt;tt&gt;tshark&lt;/tt&gt; fields against a crawled display filter reference 
-(&lt;tt&gt;dfref&lt;/tt&gt;) to ensure compatibility with the installed &lt;tt&gt;tshark&lt;/tt&gt; version. It also 
-assigns a unique integer ID to each string field name. This mapping is vital 
-for the v0.40 vectorized storage, as it allows subsequent pipeline stages to 
-look up fields via O(1) array indices rather than O(N) string hashing.
-4. &lt;strong&gt;Plugin Loading&lt;/strong&gt;: The &lt;tt&gt;Loader&lt;/tt&gt; class dynamically loads the shared object 
-file (&lt;tt&gt;libFPNT_PLUGINS.so&lt;/tt&gt;) specified in the configuration. It resolves symbols 
-for the key generation functions (&lt;tt&gt;genKey_*&lt;/tt&gt;) and preprocessing functions 
-(&lt;tt&gt;P_*&lt;/tt&gt; / &lt;tt&gt;P_*_idx&lt;/tt&gt;) defined in the CSV schemas. The &lt;tt&gt;Loader&lt;/tt&gt; caches these 
-function pointers in internal arrays, eliminating the overhead of &lt;tt&gt;dlsym&lt;/tt&gt; 
-lookups during the main processing loop.
-
-@subsection stage2 Stage 2: Multiprocessing and Subprocess Dispatch
-To maximize throughput across large datasets (like the 721 GB DeepCSI dataset), 
-&lt;tt&gt;fpnt&lt;/tt&gt; implements highly efficient file-level multiprocessing.
-
-1. &lt;strong&gt;File Discovery&lt;/strong&gt;: The main process recursively scans the specified input 
-directory, identifying all valid PCAP and PCAPNG files.
-2. &lt;strong&gt;Sorting Strategy&lt;/strong&gt;: &lt;tt&gt;fpnt&lt;/tt&gt; offers an advanced sorting mechanism to 
-optimize load balancing across CPU cores. By default, files are processed in 
-lexicographical order. However, researchers can enable size-based sorting 
-(descending). By dispatching the largest PCAP files first, &lt;tt&gt;fpnt&lt;/tt&gt; ensures that 
-straggler processes (which take a long time to finish) are scheduled early, 
-preventing a scenario where a single core is left processing a massive file 
-while all other cores remain idle.
-3. &lt;strong&gt;Forking and Execution&lt;/strong&gt;: The main process uses standard Unix &lt;tt&gt;fork()&lt;/tt&gt; to 
-spawn independent child processes up to the configured CPU concurrency limit. 
-Because memory spaces are isolated after the fork, &lt;tt&gt;fpnt&lt;/tt&gt; completely avoids 
-complex thread synchronization primitives (like mutexes or atomic variables) 
-during the data processing phase. Each child process operates autonomously on a 
-single PCAP file.
-
-@subsection stage3 Stage 3: PCAP Decoding via TSharkOutputReader
-Within each child process, the &lt;tt&gt;Dispatcher::process_main()&lt;/tt&gt; function takes over 
-the processing of a single PCAP file. The first step is to extract raw packet 
-features.
-
-1. &lt;strong&gt;Subprocess Execution&lt;/strong&gt;: The &lt;tt&gt;TSharkOutputReader&lt;/tt&gt; executes &lt;tt&gt;tshark&lt;/tt&gt; as a 
-subprocess via standard C-style &lt;tt&gt;popen&lt;/tt&gt;. &lt;tt&gt;tshark&lt;/tt&gt; is instructed to decode the 
-PCAP and output the selected fields (defined in &lt;tt&gt;input_tshark.csv&lt;/tt&gt;) as a 
-Tab-Separated Values (TSV) stream.
-2. &lt;strong&gt;High-Speed Buffered Reading&lt;/strong&gt;: A critical bottleneck in earlier versions 
-of &lt;tt&gt;fpnt&lt;/tt&gt; was the overhead of reading the TSV output. To resolve this, the 
-v0.40 update introduced a highly optimized reading mechanism. The TSV stream is 
-read directly into a large, 1MB statically allocated memory buffer using 
-&lt;tt&gt;fread&lt;/tt&gt;. 
-3. &lt;strong&gt;Newline Scanning via &lt;tt&gt;memchr&lt;/tt&gt;&lt;/strong&gt;: Instead of relying on slow C++ 
-&lt;tt&gt;std::getline&lt;/tt&gt; or &lt;tt&gt;pstreams&lt;/tt&gt;, the reader utilizes hardware-accelerated &lt;tt&gt;memchr&lt;/tt&gt; 
-to rapidly scan the 1MB buffer for newline characters (&lt;tt&gt;\\n&lt;/tt&gt;). 
-4. &lt;strong&gt;Tokenization&lt;/strong&gt;: Once a line is isolated, it is tokenized by tab characters 
-(&lt;tt&gt;\\t&lt;/tt&gt;) and converted directly into the internal vectorized format. This raw 
-C-style parsing ensures that &lt;tt&gt;fpnt&lt;/tt&gt; can consume &lt;tt&gt;tshark&lt;/tt&gt;&#x27;s output at speeds 
-approaching the maximum sequential read limit of the underlying NVMe SSD.
-
-@subsection stage4 Stage 4: Key Generation and Data Structuring
-As each packet&#x27;s features are parsed from the TSV stream, the &lt;tt&gt;Dispatcher&lt;/tt&gt; must 
-organize the data hierarchically.
-
-1. &lt;strong&gt;Packet Record Creation&lt;/strong&gt;: A baseline packet-level record is immediately 
-appended to the &lt;tt&gt;Dispatcher&lt;/tt&gt;&#x27;s internal &lt;tt&gt;std::vector&lt;/tt&gt; storage. This record acts 
-as the foundational data source for all subsequent processing.
-2. &lt;strong&gt;Key Resolution (&lt;tt&gt;Dispatcher::process_base()&lt;/tt&gt;)&lt;/strong&gt;: The &lt;tt&gt;Dispatcher&lt;/tt&gt; 
-sequentially invokes the configured &lt;tt&gt;genKey_*&lt;/tt&gt; functions for higher granularity 
-levels. For instance, if the configuration specifies a &lt;tt&gt;flow&lt;/tt&gt; granularity, the 
-packet&#x27;s data is passed to the flow key generator (e.g., 
-&lt;tt&gt;genKey_flow_default&lt;/tt&gt;). The generator returns a unique string identifier, 
-typically a 5-tuple (Source IP, Destination IP, Source Port, Destination Port, 
-Protocol).
-3. &lt;strong&gt;Hierarchical Linkage&lt;/strong&gt;: The &lt;tt&gt;Dispatcher&lt;/tt&gt; checks if a record with the 
-generated key already exists. If not, a new, empty record is created for that 
-granularity level. Crucially, the packet&#x27;s internal integer index is then 
-appended to the higher-level record&#x27;s list of child indices 
-(&lt;tt&gt;std::vector\&lt;size_t\&gt; child_idxs&lt;/tt&gt;). This strict hierarchical linkage (Packet -&gt; 
-Flow -&gt; Flowset) allows &lt;tt&gt;fpnt&lt;/tt&gt; to quickly retrieve all packets belonging to a 
-specific flow during the preprocessing stage without performing expensive 
-search operations.
-
-@subsection stage5 Stage 5: Iterative Preprocessing
-Once the entire PCAP file has been read, decoded, and structurally linked in 
-memory, the actual feature engineering phase begins.
-
-1. &lt;strong&gt;Bottom-Up Execution Strategy&lt;/strong&gt;: The &lt;tt&gt;Dispatcher::process()&lt;/tt&gt; function is 
-invoked for each granularity level in ascending order (Packet -&gt; Flow -&gt; 
-Flowset). This guarantees that lower-level features (e.g., packet direction) 
-are fully calculated before higher-level aggregations (e.g., total flow bytes) 
-attempt to read them.
-2. &lt;strong&gt;Function Dispatch Loop&lt;/strong&gt;: For every record in a given granularity level, 
-the &lt;tt&gt;Dispatcher&lt;/tt&gt; iterates through the list of preprocessing functions defined 
-in the corresponding CSV schema.
-3. &lt;strong&gt;In-Place Mutation via &lt;tt&gt;P_*_idx&lt;/tt&gt; API&lt;/strong&gt;: Using the v0.40 Index-based API, 
-the dynamically loaded plugins access the record&#x27;s data. Because all field 
-names were resolved to integer indices during the Setup Stage, the plugins 
-perform O(1) direct array accesses. For example, a &lt;tt&gt;P_childsum_ll_idx&lt;/tt&gt; plugin 
-will iterate over the record&#x27;s &lt;tt&gt;child_idxs&lt;/tt&gt;, access each child packet directly 
-via its index, extract the &lt;tt&gt;frame.len&lt;/tt&gt; value, sum the integers, and write the 
-final result back into the current record&#x27;s target field index.
-
-@subsection stage6 Stage 6: Exporting
-After all preprocessing is complete for all configured granularity levels, the 
-output phase begins.
-
-1. &lt;strong&gt;Formatting&lt;/strong&gt;: The &lt;tt&gt;writer()&lt;/tt&gt; function iterates through the internal 
-&lt;tt&gt;std::vector&lt;/tt&gt; storage. It converts the internal data representation back into 
-comma-separated strings according to the schema.
-2. &lt;strong&gt;I/O Operations&lt;/strong&gt;: The formatted strings are written to the specified 
-output directory. If the original PCAP file was located in a nested 
-subdirectory, &lt;tt&gt;fpnt&lt;/tt&gt; reconstructs that relative path structure in the output 
-directory, ensuring that researchers can easily map output CSV files back to 
-their source PCAPs.
-
-@section v040_arch What&#x27;s New in v0.40: Architectural Optimizations
-
-The v0.40 release of &lt;tt&gt;fpnt&lt;/tt&gt; introduced fundamental architectural shifts to 
-address memory overhead and processing latency, significantly differentiating 
-it from its conceptual origins. These updates were necessary to process massive 
-datasets like the 721 GB DeepCSI corpus efficiently.
-
-@subsection v040_vectorized Vectorized Internal Storage
-In earlier versions, the &lt;tt&gt;Dispatcher&lt;/tt&gt; relied heavily on C++ Standard Template 
-Library hash tables (&lt;tt&gt;std::unordered_map&lt;/tt&gt;) to store records, using string keys 
-(like &quot;frame.len&quot;) for lookups. While this dynamic schema approach was 
-extremely flexible for rapid prototyping, it caused severe memory 
-fragmentation. Every packet parsing event triggered multiple small heap 
-allocations, leading to poor CPU cache locality and high latency due to 
-constant cache misses.
-
-In v0.40, the internal storage architecture (&lt;tt&gt;out&lt;/tt&gt; buffer) was completely 
-overhauled into contiguous &lt;tt&gt;std::vector&lt;/tt&gt; arrays. Records are now pre-allocated 
-dynamically based on the schema size, and fields within records are accessed 
-strictly via predetermined integer offsets. This ensures sequential memory 
-access patterns. When the &lt;tt&gt;Dispatcher&lt;/tt&gt; iterates through thousands of packet 
-records to calculate a flow-level feature, the CPU hardware prefetcher can 
-optimally load the contiguous &lt;tt&gt;std::vector&lt;/tt&gt; memory into the L1/L2 caches ahead 
-of time, drastically reducing processing latency.
-
-@subsection v040_idx_api Index-Based Plugin API
-To complement the vectorized storage, the Plugin API was entirely rewritten. 
-The original API required plugins to query fields by their string names (e.g., 
-@c cnt[&quot;tcp.srcport&quot;]). This meant that for a PCAP file with 1 million packets, a simple addition plugin would perform 2 million string hashing operations.</p><p>The new <code>P_*_idx</code> API resolves all field names to integer indices exactly once during the <em>Setup Stage</em>. When a plugin is invoked during the <em>Preprocessing Stage</em>, it receives a <code>PluginContext</code> object containing only integer indices (<code>ctx.args_idx</code>, <code>ctx.target_idx</code>). This single architectural optimization eliminated millions of redundant hash calculations per PCAP file, directly translating to the massive throughput improvements observed in the v0.40 benchmarks.</p><section id="v040_c_popen"><h3><a href="#v040_c_popen">Standard C-style </a></h3><p>As mentioned in the workflow section, earlier versions utilized the <code>pstreams</code> C++ library to interface with the <code>tshark</code> subprocess via streams (<code>std::istream</code>). While elegant and idiomatic C++, streams introduce significant virtualization and character-conversion overheads under the hood.</p><p>v0.40 stripped away this abstraction layer, replacing <code>pstreams</code> with raw C <code>popen</code>, <code>fread</code>, and pointer arithmetic (<code>memchr</code>). By managing a raw 1MB byte buffer manually and tokenizing the TSV data in-place without unnecessary string copies, <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> achieves near disk-I/O limit speeds when consuming <code>tshark</code>&#x27;s output.</p></section></section><section id="limitations"><h2><a href="#limitations">Trade-offs and Limitations</a></h2><p>The architectural choices in <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> involve deliberate trade-offs to maximize research flexibility and prototyping speed:</p><section id="offline_only"><h3><a href="#offline_only">Offline Processing Only</a></h3><p>The framework is strictly designed for offline, post-mortem analysis. The reliance on <code>tshark</code> as an external subprocess and the file-level multiprocessing design via <code>fork()</code> make it entirely unsuitable for real-time, line-rate monitoring on live network interfaces. Deploying <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> in a high-speed production environment (like a 100 Gbps core router) is fundamentally outside its design goals.</p></section><section id="memory_overhead"><h3><a href="#memory_overhead">Memory Consumption Overhead</a></h3><p>To support complex multi-granularity aggregations (e.g., calculating the standard deviation of inter-arrival times across thousands of packets within a flowset), <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> must maintain all packet records in memory until the higher-level processing stages are fully complete.</p><p>This design choice fundamentally consumes more RAM than state-of-the-art flow exporters like <code>go-flows</code> or <code>NFStream</code>, which process traffic in a streaming fashion—discarding packet data immediately after updating fixed-size flow state variables. While the v0.40 vectorized storage improves memory density, the framework remains highly memory-intensive for massive PCAP files. As demonstrated in the performance evaluations, aggressively scaling to 32-file multiprocessing can cause the peak memory usage to reach 15.5 GB.</p></section><section id="subprocess_latency"><h3><a href="#subprocess_latency">Subprocess IPC Overhead</a></h3><p>Executing <code>tshark</code> as a subprocess inherently incurs OS-level process creation overhead and Inter-Process Communication (IPC) latency via unnamed pipes. While file-level multiprocessing effectively masks this latency across large datasets by executing tasks in parallel, the baseline processing time for a single, tiny PCAP file will always be bottlenecked by the OS process scheduler compared to monolithically compiled C/C++ tools that integrate packet parsing libraries (like <code>libpcap</code>) directly into their core binary.</p></section></section>
+<section id="intro"><h2><a href="#intro">Introduction</a></h2><p><code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> is an open-source C++ framework designed to tackle the engineering bottlenecks associated with extracting high-dimensional, multi-granular features from network traffic. While most state-of-the-art preprocessing tools tightly couple their protocol parsing logic with fixed data structures (e.g., standard 5-tuple flows), <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> fully decouples these concerns. It delegates the complex, ever-evolving task of protocol dissection to <code>tshark</code> (the terminal-based engine of Wireshark) and focuses its core architecture entirely on flexible data aggregation, key generation, and feature preprocessing.</p><p>This architectural decoupling enables researchers to rapidly prototype custom traffic granularities (e.g., bidirectional flows, channel flowsets, or physical-layer BFM events) and chain mathematical transformations without modifying the framework&#x27;s core engine. The entire pipeline is driven by simple CSV schemas and dynamically loaded plugins, effectively reducing the engineering overhead of adding a new feature from hundreds of lines of complex C/C++ code to zero.</p><figure class="m-figure"><img src="Figure1.png" alt="Image" /><figcaption>Figure 1: Overall architecture of fpnt illustrating the multi-level feature extraction pipeline for packet, flow, and flowset granularities.</figcaption></figure></section><section id="workflow"><h2><a href="#workflow">The Core Pipeline Workflow</a></h2><p>The execution of <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> follows a highly structured, deterministic pipeline designed to process PCAP files iteratively. The overall architecture, as depicted in Figure 1, comprises several key stages:</p><section id="stage1"><h3><a href="#stage1">Stage 1: Setup and Configuration Parsing</a></h3><p>When the <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> executable is launched, it first parses the command-line arguments and the <code>config.json</code> file. This initialization phase is critical for establishing the data schemas that will be used throughout the execution.</p><ol><li><strong>Global Configuration Setup</strong>: The framework reads <code>config.json</code> to determine global behaviors, such as whether to enable multiprocessing, how many CPU cores to utilize, and which <code>tshark</code> display filters to apply to the input PCAP files.</li><li><strong>Reader Initialization</strong>: The framework utilizes <code>Reader</code> objects to parse the CSV configuration files (e.g., <code>input_tshark.csv</code>, <code>output_pkt.csv</code>, <code>output_flow.csv</code>). Each CSV defines the fields to be extracted or calculated for a specific granularity level.</li><li><strong>Field Mapping and Validation</strong>: For each granularity level specified in the configuration, <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> constructs a <code>Mapper</code> object. The <code>Mapper</code> validates the requested <code>tshark</code> fields against a crawled display filter reference (<code>dfref</code>) to ensure compatibility with the installed <code>tshark</code> version. It also assigns a unique integer ID to each string field name. This mapping is vital for the v0.40 vectorized storage, as it allows subsequent pipeline stages to look up fields via O(1) array indices rather than O(N) string hashing.</li><li><strong>Plugin Loading</strong>: The <code>Loader</code> class dynamically loads the shared object file (<code>libFPNT_PLUGINS.so</code>) specified in the configuration. It resolves symbols for the key generation functions (<code>genKey_*</code>) and preprocessing functions (<code>P_*</code> / <code>P_*_idx</code>) defined in the CSV schemas. The <code>Loader</code> caches these function pointers in internal arrays, eliminating the overhead of <code>dlsym</code> lookups during the main processing loop.</li></ol></section><section id="stage2"><h3><a href="#stage2">Stage 2: Multiprocessing and Subprocess Dispatch</a></h3><p>To maximize throughput across large datasets (like the 721 GB DeepCSI dataset), <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> implements highly efficient file-level multiprocessing.</p><ol><li><strong>File Discovery</strong>: The main process recursively scans the specified input directory, identifying all valid PCAP and PCAPNG files.</li><li><strong>Sorting Strategy</strong>: <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> offers an advanced sorting mechanism to optimize load balancing across CPU cores. By default, files are processed in lexicographical order. However, researchers can enable size-based sorting (descending). By dispatching the largest PCAP files first, <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> ensures that straggler processes (which take a long time to finish) are scheduled early, preventing a scenario where a single core is left processing a massive file while all other cores remain idle.</li><li><strong>Forking and Execution</strong>: The main process uses standard Unix <code>fork()</code> to spawn independent child processes up to the configured CPU concurrency limit. Because memory spaces are isolated after the fork, <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> completely avoids complex thread synchronization primitives (like mutexes or atomic variables) during the data processing phase. Each child process operates autonomously on a single PCAP file.</li></ol></section><section id="stage3"><h3><a href="#stage3">Stage 3: PCAP Decoding via TSharkOutputReader</a></h3><p>Within each child process, the <code>Dispatcher::process_main()</code> function takes over the processing of a single PCAP file. The first step is to extract raw packet features.</p><ol><li><strong>Subprocess Execution</strong>: The <code>TSharkOutputReader</code> executes <code>tshark</code> as a subprocess via standard C-style <code>popen</code>. <code>tshark</code> is instructed to decode the PCAP and output the selected fields (defined in <code>input_tshark.csv</code>) as a Tab-Separated Values (TSV) stream.</li><li><strong>High-Speed Buffered Reading</strong>: A critical bottleneck in earlier versions of <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> was the overhead of reading the TSV output. To resolve this, the v0.40 update introduced a highly optimized reading mechanism. The TSV stream is read directly into a large, 1MB statically allocated memory buffer using <code>fread</code>.</li><li><strong>Newline Scanning via <code>memchr</code></strong>: Instead of relying on slow C++ <code>std::getline</code> or <code>pstreams</code>, the reader utilizes hardware-accelerated <code>memchr</code> to rapidly scan the 1MB buffer for newline characters (<code>\n</code>).</li><li><strong>Tokenization</strong>: Once a line is isolated, it is tokenized by tab characters (<code>\t</code>) and converted directly into the internal vectorized format. This raw C-style parsing ensures that <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> can consume <code>tshark</code>&#x27;s output at speeds approaching the maximum sequential read limit of the underlying NVMe SSD.</li></ol></section><section id="stage4"><h3><a href="#stage4">Stage 4: Key Generation and Data Structuring</a></h3><p>As each packet&#x27;s features are parsed from the TSV stream, the <code>Dispatcher</code> must organize the data hierarchically.</p><ol><li><strong>Packet Record Creation</strong>: A baseline packet-level record is immediately appended to the <code>Dispatcher</code>&#x27;s internal <code>std::vector</code> storage. This record acts as the foundational data source for all subsequent processing.</li><li><strong>Key Resolution (<code>Dispatcher::process_base()</code>)</strong>: The <code>Dispatcher</code> sequentially invokes the configured <code>genKey_*</code> functions for higher granularity levels. For instance, if the configuration specifies a <code>flow</code> granularity, the packet&#x27;s data is passed to the flow key generator (e.g., <code>genKey_flow_default</code>). The generator returns a unique string identifier, typically a 5-tuple (Source IP, Destination IP, Source Port, Destination Port, Protocol).</li><li><strong>Hierarchical Linkage</strong>: The <code>Dispatcher</code> checks if a record with the generated key already exists. If not, a new, empty record is created for that granularity level. Crucially, the packet&#x27;s internal integer index is then appended to the higher-level record&#x27;s list of child indices (<code>std::vector&lt;size_t&gt; child_idxs</code>). This strict hierarchical linkage (Packet -&gt; Flow -&gt; Flowset) allows <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> to quickly retrieve all packets belonging to a specific flow during the preprocessing stage without performing expensive search operations.</li></ol></section><section id="stage5"><h3><a href="#stage5">Stage 5: Iterative Preprocessing</a></h3><p>Once the entire PCAP file has been read, decoded, and structurally linked in memory, the actual feature engineering phase begins.</p><ol><li><strong>Bottom-Up Execution Strategy</strong>: The <code>Dispatcher::process()</code> function is invoked for each granularity level in ascending order (Packet -&gt; Flow -&gt; Flowset). This guarantees that lower-level features (e.g., packet direction) are fully calculated before higher-level aggregations (e.g., total flow bytes) attempt to read them.</li><li><strong>Function Dispatch Loop</strong>: For every record in a given granularity level, the <code>Dispatcher</code> iterates through the list of preprocessing functions defined in the corresponding CSV schema.</li><li><strong>In-Place Mutation via <code>P_*_idx</code> API</strong>: Using the v0.40 Index-based API, the dynamically loaded plugins access the record&#x27;s data. Because all field names were resolved to integer indices during the Setup Stage, the plugins perform O(1) direct array accesses. For example, a <code>P_childsum_ll_idx</code> plugin will iterate over the record&#x27;s <code>child_idxs</code>, access each child packet directly via its index, extract the <code>frame.len</code> value, sum the integers, and write the final result back into the current record&#x27;s target field index.</li></ol></section><section id="stage6"><h3><a href="#stage6">Stage 6: Exporting</a></h3><p>After all preprocessing is complete for all configured granularity levels, the output phase begins.</p><ol><li><strong>Formatting</strong>: The <code>writer()</code> function iterates through the internal <code>std::vector</code> storage. It converts the internal data representation back into comma-separated strings according to the schema.</li><li><strong>I/O Operations</strong>: The formatted strings are written to the specified output directory. If the original PCAP file was located in a nested subdirectory, <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> reconstructs that relative path structure in the output directory, ensuring that researchers can easily map output CSV files back to their source PCAPs.</li></ol></section></section><section id="v040_arch"><h2><a href="#v040_arch">What&#x27;s New in v0.40: Architectural Optimizations</a></h2><p>The v0.40 release of <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> introduced fundamental architectural shifts to address memory overhead and processing latency, significantly differentiating it from its conceptual origins. These updates were necessary to process massive datasets like the 721 GB DeepCSI corpus efficiently.</p><section id="v040_vectorized"><h3><a href="#v040_vectorized">Vectorized Internal Storage</a></h3><p>In earlier versions, the <code>Dispatcher</code> relied heavily on C++ Standard Template Library hash tables (<code>std::unordered_map</code>) to store records, using string keys (like &quot;frame.len&quot;) for lookups. While this dynamic schema approach was extremely flexible for rapid prototyping, it caused severe memory fragmentation. Every packet parsing event triggered multiple small heap allocations, leading to poor CPU cache locality and high latency due to constant cache misses.</p><p>In v0.40, the internal storage architecture (<code>out</code> buffer) was completely overhauled into contiguous <code>std::vector</code> arrays. Records are now pre-allocated dynamically based on the schema size, and fields within records are accessed strictly via predetermined integer offsets. This ensures sequential memory access patterns. When the <code>Dispatcher</code> iterates through thousands of packet records to calculate a flow-level feature, the CPU hardware prefetcher can optimally load the contiguous <code>std::vector</code> memory into the L1/L2 caches ahead of time, drastically reducing processing latency.</p></section><section id="v040_idx_api"><h3><a href="#v040_idx_api">Index-Based Plugin API</a></h3><p>To complement the vectorized storage, the Plugin API was entirely rewritten. The original API required plugins to query fields by their string names (e.g., <code>cnt[&quot;tcp.srcport&quot;]</code>). This meant that for a PCAP file with 1 million packets, a simple addition plugin would perform 2 million string hashing operations.</p><p>The new <code>P_*_idx</code> API resolves all field names to integer indices exactly once during the <em>Setup Stage</em>. When a plugin is invoked during the <em>Preprocessing Stage</em>, it receives a <code>PluginContext</code> object containing only integer indices (<code>ctx.args_idx</code>, <code>ctx.target_idx</code>). This single architectural optimization eliminated millions of redundant hash calculations per PCAP file, directly translating to the massive throughput improvements observed in the v0.40 benchmarks.</p></section><section id="v040_c_popen"><h3><a href="#v040_c_popen">Standard C-style </a></h3><p>As mentioned in the workflow section, earlier versions utilized the <code>pstreams</code> C++ library to interface with the <code>tshark</code> subprocess via streams (<code>std::istream</code>). While elegant and idiomatic C++, streams introduce significant virtualization and character-conversion overheads under the hood.</p><p>v0.40 stripped away this abstraction layer, replacing <code>pstreams</code> with raw C <code>popen</code>, <code>fread</code>, and pointer arithmetic (<code>memchr</code>). By managing a raw 1MB byte buffer manually and tokenizing the TSV data in-place without unnecessary string copies, <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> achieves near disk-I/O limit speeds when consuming <code>tshark</code>&#x27;s output.</p></section></section><section id="limitations"><h2><a href="#limitations">Trade-offs and Limitations</a></h2><p>The architectural choices in <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> involve deliberate trade-offs to maximize research flexibility and prototyping speed:</p><section id="offline_only"><h3><a href="#offline_only">Offline Processing Only</a></h3><p>The framework is strictly designed for offline, post-mortem analysis. The reliance on <code>tshark</code> as an external subprocess and the file-level multiprocessing design via <code>fork()</code> make it entirely unsuitable for real-time, line-rate monitoring on live network interfaces. Deploying <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> in a high-speed production environment (like a 100 Gbps core router) is fundamentally outside its design goals.</p></section><section id="memory_overhead"><h3><a href="#memory_overhead">Memory Consumption Overhead</a></h3><p>To support complex multi-granularity aggregations (e.g., calculating the standard deviation of inter-arrival times across thousands of packets within a flowset), <code><a href="namespacefpnt.html" class="m-doc">fpnt</a></code> must maintain all packet records in memory until the higher-level processing stages are fully complete.</p><p>This design choice fundamentally consumes more RAM than state-of-the-art flow exporters like <code>go-flows</code> or <code>NFStream</code>, which process traffic in a streaming fashion—discarding packet data immediately after updating fixed-size flow state variables. While the v0.40 vectorized storage improves memory density, the framework remains highly memory-intensive for massive PCAP files. As demonstrated in the performance evaluations, aggressively scaling to 32-file multiprocessing can cause the peak memory usage to reach 15.5 GB.</p></section><section id="subprocess_latency"><h3><a href="#subprocess_latency">Subprocess IPC Overhead</a></h3><p>Executing <code>tshark</code> as a subprocess inherently incurs OS-level process creation overhead and Inter-Process Communication (IPC) latency via unnamed pipes. While file-level multiprocessing effectively masks this latency across large datasets by executing tasks in parallel, the baseline processing time for a single, tiny PCAP file will always be bottlenecked by the OS process scheduler compared to monolithically compiled C/C++ tools that integrate packet parsing libraries (like <code>libpcap</code>) directly into their core binary.</p></section></section>
       </div>
     </div>
   </div>
