@@ -51,11 +51,10 @@ std::vector<double> stringToVector(std::string_view str) {
     }
 
     if (num_start < end) {
-      double val = 0.0;
-      auto [ptr, ec] = std::from_chars(str.data() + num_start, str.data() + end, val);
-      if (ec == std::errc()) {
+      try {
+        double val = std::stod(std::string(str.substr(num_start, end - num_start)));
         result.push_back(val);
-      } else {
+      } catch (const std::exception& e) {
         std::cerr << "Conversion error at index " << num_start << "\n";
       }
     }
