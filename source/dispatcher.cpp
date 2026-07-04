@@ -450,8 +450,9 @@ namespace fpnt {
     }
 
     if (g_lv_idx[from] > g_lv_idx[to]) {
-      std::cerr << "please use get_idxs to access lower granuality records!" << std::endl;
-      exit(1);
+      std::vector<size_t> child_idxs = get_idxs(key, from, to);
+      if (child_idxs.empty()) return -1;
+      return child_idxs[0];
     }
 
     // now g_lv_idx[from] < g_lv_idx[to]
@@ -469,8 +470,9 @@ namespace fpnt {
     }
 
     if (g_lv_idx[from] > g_lv_idx[to]) {
-      std::cerr << "please use get_idxs to access lower granuality records!" << std::endl;
-      exit(1);
+      std::vector<std::string> child_keys = get_keys(key, from, to);
+      if (child_keys.empty()) return "";
+      return child_keys[0];
     }
 
     // now g_lv_idx[from] < g_lv_idx[to]
