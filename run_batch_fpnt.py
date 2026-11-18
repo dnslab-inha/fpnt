@@ -1,6 +1,7 @@
 import time
 import os
 import json
+import shutil
 import subprocess
 import sys
 import psutil
@@ -157,9 +158,18 @@ def run_batch():
 
                     # [실행부 내부의 데이터 수집 완료 후]
                     duration = round(time.time() - start_time, 2)
+                    end_dt = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+                    # Drain the same text stream to preserve any buffered data
+                    # from readline(), including a final unterminated line.
+                    with process.stdout as stdout:
+                        os.set_blocking(stdout.fileno(), True)
+                        shutil.copyfileobj(stdout, dump_f)
+                    dump_f.flush()
+
                     max_mem_mb = round(max(mem_usages), 2) if mem_usages else 0
                     
-                    result_line = f"{exp_name},{mc},{start_dt},{datetime.now().strftime('%Y-%m-%d %H:%M:%S')},{duration},{max_mem_mb},{process.returncode}\n"
+                    result_line = f"{exp_name},{mc},{start_dt},{end_dt},{duration},{max_mem_mb},{process.returncode}\n"
                     with open(summary_file, 'a', encoding='utf-8') as res_f:
                         res_f.write(result_line)
 
